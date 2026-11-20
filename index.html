@@ -1,0 +1,3050 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Crazy 5 — AI Background Remover &amp; Passport Studio</title>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- MediaPipe Selfie Segmentation (100% Client-Side, GitHub Pages Ready) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overscroll-behavior-y: none;
+    }
+
+    /* Crisp Checkerboard for Transparent PNG Preview */
+    .checkerboard {
+      background-color: #1e293b;
+      background-image:
+        linear-gradient(45deg, #334155 25%, transparent 25%),
+        linear-gradient(-45deg, #334155 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #334155 75%),
+        linear-gradient(-45deg, transparent 75%, #334155 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    }
+
+    /* Custom Range Sliders */
+    input[type='range'] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    input[type='range']::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 9999px;
+      background: #334155;
+    }
+
+    input[type='range']::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      margin-top: -6px;
+      border-radius: 9999px;
+      background: #22d3ee;
+      border: 2px solid #0f172a;
+      box-shadow: 0 2px 8px rgba(34, 211, 238, 0.45);
+      transition: transform 0.12s ease;
+    }
+
+    input[type='range']::-webkit-slider-thumb:hover {
+      transform: scale(1.12);
+    }
+
+    input[type='range']::-moz-range-track {
+      height: 6px;
+      border-radius: 9999px;
+      background: #334155;
+    }
+
+    input[type='range']::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 9999px;
+      background: #22d3ee;
+      border: 2px solid #0f172a;
+      box-shadow: 0 2px 8px rgba(34, 211, 238, 0.45);
+    }
+
+    /* Custom Subtle Scrollbars */
+    .thin-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .thin-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .thin-scroll::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+
+    .thin-scroll::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Smooth Pop-In Animation */
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: scale(0.94) translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .animate-pop-in {
+      animation: popIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Prevent touch scroll while panning/pinching on canvas */
+    #displayCanvas {
+      touch-action: none;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col overflow-x-hidden selection:bg-cyan-500/30 selection:text-cyan-200">
+  <!-- Hidden File Inputs -->
+  <input id="photoInput" type="file" accept="image/*" class="hidden" />
+  <input id="customBgInput" type="file" accept="image/*" class="hidden" />
+
+  <!-- ===================================================================== -->
+  <!-- TOP NAVIGATION DASHBOARD                                              -->
+  <!-- ===================================================================== -->
+  <header class="sticky top-0 z-40 w-full bg-slate-950/90 backdrop-blur-xl border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
+      <!-- Brand Logo (cNo + Crazy 5) & Contextual Upload + 1-Click Passport Action -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <!-- Brand Identity -->
+        <div class="flex items-center gap-2.5 pr-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 p-[1.5px] shadow-lg shadow-cyan-500/20 shrink-0">
+            <div class="w-full h-full rounded-[10px] bg-slate-950/85 flex items-center justify-center">
+              <span class="text-sm sm:text-base font-black tracking-tight bg-gradient-to-r from-cyan-300 to-blue-300 bg-clip-text text-transparent">cNo</span>
+            </div>
+          </div>
+          <div class="leading-tight">
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">Crazy 5</h1>
+              <span class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                Studio
+              </span>
+            </div>
+            <p class="text-[10px] sm:text-[11px] text-slate-400 font-medium">Auto BG Remover &amp; Passport Maker</p>
+          </div>
+        </div>
+
+        <div class="hidden sm:block h-7 w-px bg-slate-800"></div>
+
+        <!-- Upload Image Button -->
+        <button
+          id="headerUploadBtn"
+          type="button"
+          class="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-cyan-500/20 transition cursor-pointer"
+        >
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <span>Upload Image</span>
+        </button>
+
+        <!-- 1-Click Auto Passport Size Button (Appears right next to Upload Image once a photo is loaded) -->
+        <button
+          id="quickPassportBtn"
+          type="button"
+          class="hidden inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-lg shadow-indigo-500/25 border border-indigo-400/30 transition cursor-pointer animate-pop-in"
+          title="1-Click Auto Passport Size Framing (No Face/Body Distortion)"
+        >
+          <i data-lucide="id-card" class="w-4 h-4"></i>
+          <span>Passport Size Image</span>
+        </button>
+
+        <!-- Reset to Original Ratio Button (Appears when a Passport preset is active) -->
+        <button
+          id="quickOriginalBtn"
+          type="button"
+          class="hidden inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-slate-200 font-semibold text-xs border border-slate-700 transition cursor-pointer"
+          title="Reset back to original photo ratio"
+        >
+          <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+          <span class="hidden md:inline">Original Ratio</span>
+        </button>
+      </div>
+
+      <!-- Right Header Action: Single Unified Download Dropdown (100 KB – 1024 KB) -->
+      <div class="flex items-center gap-2 ml-auto">
+        <div id="downloadMenuWrap" class="relative">
+          <button
+            id="downloadMenuBtn"
+            type="button"
+            disabled
+            aria-haspopup="true"
+            aria-expanded="false"
+            class="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-95 text-slate-950 font-extrabold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 disabled:shadow-none transition cursor-pointer"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Download</span>
+            <i id="downloadChevron" data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-150"></i>
+          </button>
+
+          <!-- Unified 10-Size Dropdown Menu -->
+          <div
+            id="downloadDropdown"
+            class="hidden absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 shadow-2xl shadow-black/70 p-3.5 z-50 animate-pop-in"
+          >
+            <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-800">
+              <div>
+                <h3 class="text-xs font-extrabold uppercase tracking-wider text-emerald-300">Select Target File Size</h3>
+                <p id="exportHintText" class="text-[11px] text-slate-400 mt-0.5">Transparent BG active → Optimized PNG</p>
+              </div>
+              <span id="exportFormatPill" class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-cyan-300">PNG</span>
+            </div>
+            <div id="downloadSizeGrid" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- MAIN WORKSPACE                                                        -->
+  <!-- ===================================================================== -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-5 py-4 sm:py-5 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
+    <!-- LEFT / CENTER COLUMN: LIVE CANVAS STAGE & ZOOM CONTROLS -->
+    <section class="lg:col-span-7 xl:col-span-8 flex flex-col gap-3.5 min-w-0">
+      <!-- Top Status Strip above Canvas -->
+      <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+          <span id="stageStatusDot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+          <span id="stageStatusText" class="font-medium">Ready — Upload, drag-drop, or press Ctrl+V to paste a photo</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span id="engineBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-cyan-300">AI Cutout Ready</span>
+          <span id="presetDimensionBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/15 border border-indigo-400/30 text-indigo-300">Original</span>
+        </div>
+      </div>
+
+      <!-- Interactive Preview Canvas Stage -->
+      <div
+        id="canvasStage"
+        class="relative w-full min-h-[360px] sm:min-h-[470px] lg:min-h-[530px] max-h-[68vh] bg-slate-900/70 border border-slate-800 rounded-3xl overflow-visible flex items-center justify-center p-4 sm:p-6 shadow-inner select-none transition-colors"
+      >
+        <!-- Drag-Over Highlight Ring -->
+        <div
+          id="dragOverlay"
+          class="hidden pointer-events-none absolute inset-2 z-30 rounded-2xl border-2 border-dashed border-cyan-400 bg-cyan-500/10 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2"
+        >
+          <div class="w-12 h-12 rounded-2xl bg-cyan-500/20 flex items-center justify-center text-cyan-300">
+            <i data-lucide="image-plus" class="w-6 h-6"></i>
+          </div>
+          <p class="text-sm font-extrabold text-cyan-200">Drop Photo Here for Instant Auto BG Removal</p>
+        </div>
+
+        <!-- Empty State Upload Card -->
+        <div
+          id="emptyState"
+          class="w-full max-w-md mx-auto text-center p-6 sm:p-8 rounded-2xl border-2 border-dashed border-slate-700/90 hover:border-cyan-400/70 bg-slate-950/60 transition cursor-pointer group"
+        >
+          <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-300 group-hover:scale-105 transition">
+            <i data-lucide="sparkles" class="w-8 h-8"></i>
+          </div>
+          <h2 class="text-lg sm:text-xl font-extrabold text-white mb-1.5">Upload Any Photo</h2>
+          <p class="text-xs sm:text-sm text-slate-400 leading-relaxed mb-5">
+            Background auto-removes instantly into a smooth transparent PNG. Customize gradients, solid colors, or make a 1-click Bangladesh / International Passport photo.
+          </p>
+          <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500 group-hover:bg-cyan-400 text-slate-950 font-extrabold text-sm shadow-lg shadow-cyan-500/20 transition">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+            <span>Choose Photo or Drop Here</span>
+          </div>
+          <p class="mt-3.5 text-[11px] text-slate-500 font-medium">Supports JPG, PNG, WEBP • Paste with Ctrl+V • 100% Private (Runs in Browser)</p>
+        </div>
+
+        <!-- Live Composition Canvas Frame -->
+        <div
+          id="canvasFrame"
+          class="hidden relative rounded-2xl overflow-hidden shadow-2xl shadow-black/70 ring-1 ring-slate-700/80 checkerboard"
+        >
+          <canvas id="displayCanvas" class="block cursor-grab active:cursor-grabbing"></canvas>
+        </div>
+
+        <!-- Floating Processing Progress Pill -->
+        <div
+          id="progressPill"
+          class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-30 inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-950/95 border border-cyan-500/40 shadow-xl shadow-black/60"
+        >
+          <span class="w-4 h-4 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin shrink-0"></span>
+          <span id="progressText" class="text-xs font-bold text-cyan-200 whitespace-nowrap">Removing background...</span>
+        </div>
+
+        <!-- Hold-to-Compare Badge -->
+        <div
+          id="compareBadge"
+          class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-amber-400 text-slate-950 text-xs font-extrabold shadow-lg pointer-events-none"
+        >
+          Showing Original Photo
+        </div>
+
+        <!-- Floating Download Icon on the Right Side of the Picture -->
+        <div
+          id="stageDownloadWrap"
+          class="hidden absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 z-30"
+        >
+          <button
+            id="stageDownloadBtn"
+            type="button"
+            aria-haspopup="true"
+            aria-expanded="false"
+            title="Download Photo (100 KB – 1024 KB)"
+            class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 disabled:opacity-50 active:scale-95 text-white shadow-xl shadow-emerald-950/60 ring-2 ring-slate-950/80 border border-emerald-300/40 flex flex-col items-center justify-center gap-0.5 transition cursor-pointer animate-pop-in"
+          >
+            <i data-lucide="download" class="w-5 h-5"></i>
+            <span class="text-[9px] font-extrabold leading-none tracking-tight uppercase">Save</span>
+          </button>
+
+          <!-- Floating 10-Size KB Picker Popover (Opens to the Left of the Right-Side Icon) -->
+          <div
+            id="stageDownloadPopover"
+            class="hidden absolute right-full mr-2.5 top-1/2 -translate-y-1/2 w-60 sm:w-64 max-w-[calc(100vw-5.5rem)] rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 shadow-2xl shadow-black/70 p-3 z-40 animate-pop-in"
+          >
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300">Quick Download</span>
+              <span id="stageExportFormatPill" class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[10px] font-mono font-bold text-cyan-300">PNG</span>
+            </div>
+            <div id="stageDownloadSizeGrid" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- High-Range Zoom (30% - 500%) & Smooth Pan Controls -->
+      <div
+        id="transformBar"
+        class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 sm:p-4 flex flex-col gap-3 opacity-50 pointer-events-none transition-opacity"
+      >
+        <!-- Zoom Row -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-cyan-400"></i>
+              Zoom
+            </span>
+            <span id="zoomValueBadge" class="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-xs font-mono font-bold text-cyan-300">100%</span>
+          </div>
+
+          <!-- Quick Zoom Pills + Compare + Reset -->
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button type="button" data-zoom="1" class="zoom-pill px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 border border-slate-700 transition cursor-pointer">100%</button>
+            <button type="button" data-zoom="1.5" class="zoom-pill px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 border border-slate-700 transition cursor-pointer">150%</button>
+            <button type="button" data-zoom="2.5" class="zoom-pill px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 border border-slate-700 transition cursor-pointer">250%</button>
+            <button type="button" data-zoom="4" class="zoom-pill px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 border border-slate-700 transition cursor-pointer">400%</button>
+            <button type="button" data-zoom="5" class="zoom-pill px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 border border-slate-700 transition cursor-pointer">500%</button>
+
+            <button
+              id="compareOriginalBtn"
+              type="button"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-[11px] font-bold text-amber-300 transition cursor-pointer select-none"
+              title="Hold to view original unedited photo"
+            >
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+              <span>Hold Compare</span>
+            </button>
+
+            <button
+              id="resetTransformBtn"
+              type="button"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-slate-200 transition cursor-pointer"
+              title="Reset zoom & position"
+            >
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+              <span>Reset</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Zoom Slider with - / + Buttons -->
+        <div class="flex items-center gap-2.5">
+          <button
+            id="zoomOutBtn"
+            type="button"
+            class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-200 transition cursor-pointer shrink-0"
+            title="Zoom Out"
+          >
+            <i data-lucide="minus" class="w-4 h-4"></i>
+          </button>
+          <input id="zoomSlider" type="range" min="30" max="500" step="1" value="100" class="w-full" />
+          <button
+            id="zoomInBtn"
+            type="button"
+            class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-200 transition cursor-pointer shrink-0"
+            title="Zoom In"
+          >
+            <i data-lucide="plus" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- X / Y Position Sliders -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-slate-800/80">
+          <div class="flex items-center gap-2.5">
+            <span class="text-[11px] font-bold text-slate-400 w-14 shrink-0">Pos X</span>
+            <input id="panXSlider" type="range" min="-150" max="150" step="1" value="0" class="w-full" />
+            <span id="panXVal" class="text-[11px] font-mono text-slate-400 w-9 text-right shrink-0">0%</span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-[11px] font-bold text-slate-400 w-14 shrink-0">Pos Y</span>
+            <input id="panYSlider" type="range" min="-150" max="150" step="1" value="0" class="w-full" />
+            <span id="panYVal" class="text-[11px] font-mono text-slate-400 w-9 text-right shrink-0">0%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: STUDIO CONTROLS (BACKGROUND / PASSPORT / EDGE REFINE) -->
+    <aside class="lg:col-span-5 xl:col-span-4 bg-slate-900/80 border border-slate-800 rounded-3xl overflow-hidden flex flex-col shadow-xl min-w-0">
+      <!-- 3 Clean Studio Tabs (No Dress Tab) -->
+      <div class="grid grid-cols-3 p-1.5 bg-slate-950/70 border-b border-slate-800 gap-1">
+        <button
+          type="button"
+          data-tab="bg"
+          class="tab-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl text-xs font-extrabold transition cursor-pointer bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
+        >
+          <i data-lucide="palette" class="w-3.5 h-3.5"></i>
+          <span>Background</span>
+        </button>
+        <button
+          type="button"
+          data-tab="passport"
+          class="tab-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl text-xs font-bold transition cursor-pointer text-slate-400 hover:text-slate-200 border border-transparent"
+        >
+          <i data-lucide="id-card" class="w-3.5 h-3.5"></i>
+          <span>Passport</span>
+        </button>
+        <button
+          type="button"
+          data-tab="edge"
+          class="tab-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-2xl text-xs font-bold transition cursor-pointer text-slate-400 hover:text-slate-200 border border-transparent"
+        >
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+          <span>Edge Blend</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: BACKGROUND CUSTOMIZATION (Transparent → Gradients FIRST → Solids SECOND → Studio Styles) -->
+      <div id="panel-bg" class="tab-panel p-4 flex flex-col gap-5 max-h-[72vh] overflow-y-auto thin-scroll">
+        <!-- Transparent PNG Cutout Option -->
+        <div>
+          <button
+            id="btnTransparentBg"
+            type="button"
+            class="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-950/80 border-2 border-cyan-400 text-left transition cursor-pointer hover:bg-slate-800/80"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl checkerboard border border-slate-600 shrink-0"></div>
+              <div>
+                <div class="text-xs font-extrabold text-white">Transparent (PNG Cutout)</div>
+                <div class="text-[11px] text-slate-400">Subject only, zero background</div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 text-[10px] font-bold">PNG</span>
+          </button>
+        </div>
+
+        <!-- 1. GRADIENT COLORS (FIRST) -->
+        <div class="flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-gradient-to-r from-cyan-400 to-indigo-500"></span>
+              Gradient Colors
+            </h3>
+            <span class="text-[10px] font-semibold text-slate-500">12 Studio Presets</span>
+          </div>
+
+          <div id="gradientGrid" class="grid grid-cols-4 gap-2"></div>
+
+          <!-- Custom 2-Color Gradient Builder -->
+          <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 flex flex-col gap-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-slate-300">Custom Gradient</span>
+              <span id="customGradAngleVal" class="text-[10px] font-mono text-cyan-300">135°</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer">
+                <input id="customGradColor1" type="color" value="#0ea5e9" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0" />
+                <span class="text-[10px] font-semibold text-slate-300">Color 1</span>
+              </label>
+              <label class="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-xl bg-slate-900 border border-slate-700 cursor-pointer">
+                <input id="customGradColor2" type="color" value="#1e3a8a" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0" />
+                <span class="text-[10px] font-semibold text-slate-300">Color 2</span>
+              </label>
+              <button
+                id="applyCustomGradBtn"
+                type="button"
+                class="px-2.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-[11px] font-bold text-cyan-200 transition cursor-pointer shrink-0"
+              >
+                Apply
+              </button>
+            </div>
+            <input id="customGradAngle" type="range" min="0" max="360" step="5" value="135" class="w-full" />
+          </div>
+        </div>
+
+        <!-- 2. SOLID COLORS (SECOND) -->
+        <div class="flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+              Solid Colors
+            </h3>
+            <span class="text-[10px] font-semibold text-slate-500">Official Passport &amp; Studio</span>
+          </div>
+
+          <div id="solidGrid" class="grid grid-cols-5 gap-2"></div>
+
+          <!-- Custom Solid Color Picker -->
+          <div class="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800">
+            <label class="flex items-center gap-2.5 cursor-pointer flex-1">
+              <input id="customSolidPicker" type="color" value="#ffffff" class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0" />
+              <div class="leading-tight">
+                <div class="text-xs font-bold text-slate-200">Custom Solid Color</div>
+                <div id="customSolidHex" class="text-[10px] font-mono text-slate-400 uppercase">#FFFFFF</div>
+              </div>
+            </label>
+            <button
+              id="applyCustomSolidBtn"
+              type="button"
+              class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-bold text-slate-200 transition cursor-pointer"
+            >
+              Use Color
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. STUDIO STYLES & CUSTOM BG IMAGE -->
+        <div class="flex flex-col gap-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+              Studio Styles &amp; Custom BG
+            </h3>
+            <span class="text-[10px] font-semibold text-slate-500">Pro Backdrops</span>
+          </div>
+
+          <div id="studioStyleGrid" class="grid grid-cols-2 gap-2"></div>
+
+          <button
+            id="uploadCustomBgBtn"
+            type="button"
+            class="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-slate-950/80 hover:bg-slate-800 border border-dashed border-slate-700 hover:border-cyan-400/60 text-xs font-bold text-slate-300 transition cursor-pointer"
+          >
+            <i data-lucide="image" class="w-4 h-4 text-cyan-400"></i>
+            <span>Upload Your Own Background Image</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 2: PASSPORT SIZES (9 Bangladesh & International Presets) -->
+      <div id="panel-passport" class="tab-panel hidden p-4 flex flex-col gap-4 max-h-[72vh] overflow-y-auto thin-scroll">
+        <!-- 1-Click Auto Frame Banner -->
+        <div class="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-cyan-500/10 border border-indigo-400/30 flex flex-col gap-2.5">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <h3 class="text-xs font-extrabold text-white">1-Click Smart Passport Framing</h3>
+              <p class="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
+                Auto-centers your head &amp; shoulders using AI mask bounds without changing face or body shape.
+              </p>
+            </div>
+            <i data-lucide="scan-face" class="w-5 h-5 text-indigo-300 shrink-0"></i>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              id="panelAutoPassportBtn"
+              type="button"
+              class="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 active:scale-95 text-white text-xs font-extrabold shadow-md transition cursor-pointer"
+            >
+              <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+              <span>Auto-Frame Current Preset</span>
+            </button>
+            <button
+              id="toggleGuidesBtn"
+              type="button"
+              class="inline-flex items-center gap-1.5 py-2 px-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-slate-200 transition cursor-pointer"
+              title="Toggle Passport Alignment Guide (Preview Only)"
+            >
+              <i data-lucide="grid-3x3" class="w-3.5 h-3.5 text-cyan-400"></i>
+              <span id="toggleGuidesLabel">Guides: On</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 9 Bangladesh & International Presets -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-extrabold uppercase tracking-wider text-slate-300">Bangladesh &amp; International Sizes</h3>
+            <span class="text-[10px] font-semibold text-slate-500">9 Presets</span>
+          </div>
+          <div id="passportPresetGrid" class="grid grid-cols-1 gap-2"></div>
+        </div>
+      </div>
+
+      <!-- TAB 3: STUDIO EDGE & BLEND REFINEMENT (Fixes Halo / Detached Look) -->
+      <div id="panel-edge" class="tab-panel hidden p-4 flex flex-col gap-4 max-h-[72vh] overflow-y-auto thin-scroll">
+        <div class="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 text-[11px] text-emerald-200 leading-relaxed flex items-start gap-2.5">
+          <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+          <span>
+            <strong>Zero-Halo Studio Engine Active:</strong> Guided Filter + Color Decontamination + Ambient BG Light Wrap blend your photo seamlessly into any new background.
+          </span>
+        </div>
+
+        <!-- Halo Trim (Sub-pixel Erosion) -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-200">Halo Trim (Remove Edge Outline)</span>
+            <span id="haloTrimVal" class="font-mono text-cyan-300 font-bold">1.2 px</span>
+          </div>
+          <input id="haloTrimSlider" type="range" min="0" max="4" step="0.1" value="1.2" class="w-full" />
+          <p class="text-[10px] text-slate-500">Trims faint residual background outline ("chap") around hair and shoulders.</p>
+        </div>
+
+        <!-- Edge Smoothness / Feather -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-200">Edge Smoothness (Feather)</span>
+            <span id="edgeSmoothVal" class="font-mono text-cyan-300 font-bold">1.1 px</span>
+          </div>
+          <input id="edgeSmoothSlider" type="range" min="0" max="4" step="0.1" value="1.1" class="w-full" />
+          <p class="text-[10px] text-slate-500">Softens jagged pixel edges for a natural camera lens falloff.</p>
+        </div>
+
+        <!-- Color Decontamination (Spill Suppression) -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-200">Color Spill Removal</span>
+            <span id="decontamVal" class="font-mono text-cyan-300 font-bold">85%</span>
+          </div>
+          <input id="decontamSlider" type="range" min="0" max="100" step="5" value="85" class="w-full" />
+          <p class="text-[10px] text-slate-500">Removes old background tint bleeding into hair &amp; clothing edges.</p>
+        </div>
+
+        <!-- Ambient BG Light Wrap (Live 60fps) -->
+        <div class="flex flex-col gap-1.5 pt-2 border-t border-slate-800">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-200">BG Light Wrap (Natural Blend)</span>
+            <span id="lightWrapVal" class="font-mono text-cyan-300 font-bold">35%</span>
+          </div>
+          <input id="lightWrapSlider" type="range" min="0" max="100" step="5" value="35" class="w-full" />
+          <p class="text-[10px] text-slate-500">Wraps subtle ambient light from the new background onto the subject's rim.</p>
+        </div>
+
+        <!-- Soft Studio Shadow (Live 60fps) -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-200">Soft Studio Shadow</span>
+            <span id="studioShadowVal" class="font-mono text-cyan-300 font-bold">18%</span>
+          </div>
+          <input id="studioShadowSlider" type="range" min="0" max="100" step="5" value="18" class="w-full" />
+          <p class="text-[10px] text-slate-500">Adds realistic depth behind the person on solid/gradient/studio backgrounds.</p>
+        </div>
+
+        <!-- Edge Utility Buttons -->
+        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+          <button
+            id="resetEdgeBtn"
+            type="button"
+            class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 transition cursor-pointer"
+          >
+            Reset Defaults
+          </button>
+          <button
+            id="rerunAiBtn"
+            type="button"
+            class="py-2 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/35 text-xs font-bold text-cyan-200 transition cursor-pointer"
+          >
+            Re-run AI Cutout
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Toast Notification Container (No browser alert() used) -->
+  <div
+    id="toastContainer"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-full max-w-md px-4"
+  ></div>
+
+  <!-- ===================================================================== -->
+  <!-- APPLICATION LOGIC                                                     -->
+  <!-- ===================================================================== -->
+  <script>
+    (() => {
+      'use strict';
+
+      // =====================================================================
+      // 1. STATIC LIBRARIES & CONFIGURATION
+      // =====================================================================
+
+      const DOWNLOAD_SIZES = [
+        { kb: 100, label: '100 KB', tag: 'Govt / Online' },
+        { kb: 200, label: '200 KB', tag: 'Passport Web' },
+        { kb: 300, label: '300 KB', tag: 'Standard' },
+        { kb: 400, label: '400 KB', tag: 'Crisp' },
+        { kb: 500, label: '500 KB', tag: 'High Quality' },
+        { kb: 600, label: '600 KB', tag: 'HD' },
+        { kb: 700, label: '700 KB', tag: 'HD+' },
+        { kb: 800, label: '800 KB', tag: 'Studio' },
+        { kb: 900, label: '900 KB', tag: 'Ultra' },
+        { kb: 1024, label: '1024 KB', tag: '1 MB Max' },
+      ];
+
+      // 12 Curated Studio Gradients (Displayed FIRST)
+      const GRADIENT_PRESETS = [
+        { id: 'sky-studio', name: 'Sky Studio', c1: '#bae6fd', c2: '#0284c7', angle: 160 },
+        { id: 'royal-blue', name: 'Royal Blue', c1: '#3b82f6', c2: '#1e3a8a', angle: 145 },
+        { id: 'pure-pearl', name: 'Soft Pearl', c1: '#ffffff', c2: '#dbeafe', angle: 180 },
+        { id: 'cool-slate', name: 'Studio Gray', c1: '#f1f5f9', c2: '#94a3b8', angle: 165 },
+        { id: 'corporate-navy', name: 'Exec Navy', c1: '#1e293b', c2: '#0f172a', angle: 145 },
+        { id: 'teal-breeze', name: 'Teal Breeze', c1: '#99f6e4', c2: '#0f766e', angle: 150 },
+        { id: 'warm-ivory', name: 'Warm Ivory', c1: '#fffbeb', c2: '#fde68a', angle: 165 },
+        { id: 'indigo-glow', name: 'Indigo Pro', c1: '#6366f1', c2: '#312e81', angle: 135 },
+        { id: 'crimson-studio', name: 'Crimson', c1: '#ef4444', c2: '#7f1d1d', angle: 150 },
+        { id: 'emerald-pro', name: 'Emerald', c1: '#34d399', c2: '#065f46', angle: 155 },
+        { id: 'sunset-soft', name: 'Soft Sunset', c1: '#fed7aa', c2: '#fb7185', angle: 140 },
+        { id: 'charcoal-lux', name: 'Charcoal', c1: '#475569', c2: '#0f172a', angle: 170 },
+      ];
+
+      // 15 Official & Studio Solid Colors (Displayed SECOND)
+      const SOLID_PRESETS = [
+        { name: 'Pure White', hex: '#ffffff' },
+        { name: 'Off White', hex: '#f8fafc' },
+        { name: 'Passport Sky', hex: '#7dd3fc' },
+        { name: 'Light Blue', hex: '#38bdf8' },
+        { name: 'Classic Blue', hex: '#2563eb' },
+        { name: 'Deep Blue', hex: '#1d4ed8' },
+        { name: 'Navy Blue', hex: '#1e3a8a' },
+        { name: 'Studio Gray', hex: '#e2e8f0' },
+        { name: 'Neutral Gray', hex: '#94a3b8' },
+        { name: 'Charcoal', hex: '#1e293b' },
+        { name: 'Passport Red', hex: '#dc2626' },
+        { name: 'Crimson', hex: '#b91c1c' },
+        { name: 'Soft Mint', hex: '#ccfbf1' },
+        { name: 'Teal', hex: '#0d9488' },
+        { name: 'Warm Cream', hex: '#fef3c7' },
+      ];
+
+      // 6 Procedural Studio Backdrops
+      const STUDIO_STYLES = [
+        { id: 'vignette-blue', name: 'Blue Studio Vignette', desc: 'Classic portrait lighting', preview: 'radial-gradient(circle at 50% 38%, #60a5fa 0%, #1d4ed8 65%, #172554 100%)' },
+        { id: 'vignette-light', name: 'Soft White Studio', desc: 'Clean halo spotlight', preview: 'radial-gradient(circle at 50% 35%, #ffffff 0%, #e2e8f0 68%, #cbd5e1 100%)' },
+        { id: 'executive-dark', name: 'Executive Slate', desc: 'LinkedIn / Corporate', preview: 'radial-gradient(circle at 50% 35%, #475569 0%, #1e293b 62%, #020617 100%)' },
+        { id: 'bokeh-cyan', name: 'Soft Office Bokeh', desc: 'Blurred light orbs', preview: 'linear-gradient(145deg, #0c4a6e 0%, #0369a1 50%, #0f172a 100%)' },
+        { id: 'warm-studio', name: 'Warm Portrait Glow', desc: 'Golden soft backdrop', preview: 'radial-gradient(circle at 50% 36%, #fef3c7 0%, #d97706 72%, #78350f 100%)' },
+        { id: 'editorial-gray', name: 'Editorial Backdrop', desc: 'Matte neutral studio', preview: 'radial-gradient(circle at 50% 34%, #cbd5e1 0%, #64748b 68%, #334155 100%)' },
+      ];
+
+      // 9 Bangladesh & International Passport Presets
+      const PASSPORT_PRESETS = [
+        {
+          id: 'bd_passport',
+          name: 'Bangladesh Passport',
+          sizeText: '45 × 55 mm',
+          badge: 'BD Standard',
+          ratioW: 45,
+          ratioH: 55,
+          outW: 531,
+          outH: 650,
+          exactPx: false,
+        },
+        {
+          id: 'bd_epassport',
+          name: 'BD e-Passport / EU / UK',
+          sizeText: '35 × 45 mm',
+          badge: 'e-Passport',
+          ratioW: 35,
+          ratioH: 45,
+          outW: 413,
+          outH: 531,
+          exactPx: false,
+        },
+        {
+          id: 'bd_teletalk',
+          name: 'BD Govt Job / Teletalk',
+          sizeText: '300 × 300 px',
+          badge: 'Exact PX',
+          ratioW: 1,
+          ratioH: 1,
+          outW: 300,
+          outH: 300,
+          exactPx: true,
+        },
+        {
+          id: 'bd_stamp',
+          name: 'BD Stamp Size',
+          sizeText: '20 × 25 mm',
+          badge: 'Stamp',
+          ratioW: 20,
+          ratioH: 25,
+          outW: 236,
+          outH: 295,
+          exactPx: false,
+        },
+        {
+          id: 'us_visa',
+          name: 'US / India / BD Visa',
+          sizeText: '2 × 2 inch (51×51 mm)',
+          badge: 'Square',
+          ratioW: 1,
+          ratioH: 1,
+          outW: 600,
+          outH: 600,
+          exactPx: false,
+        },
+        {
+          id: 'studio_40x50',
+          name: 'Standard Studio Print',
+          sizeText: '40 × 50 mm',
+          badge: 'Studio',
+          ratioW: 40,
+          ratioH: 50,
+          outW: 472,
+          outH: 591,
+          exactPx: false,
+        },
+        {
+          id: 'canada_pass',
+          name: 'Canada Passport',
+          sizeText: '50 × 70 mm',
+          badge: 'Canada',
+          ratioW: 50,
+          ratioH: 70,
+          outW: 591,
+          outH: 827,
+          exactPx: false,
+        },
+        {
+          id: 'china_japan',
+          name: 'China / Japan Visa',
+          sizeText: '33 × 48 mm',
+          badge: 'Asia Visa',
+          ratioW: 33,
+          ratioH: 48,
+          outW: 390,
+          outH: 567,
+          exactPx: false,
+        },
+        {
+          id: 'original',
+          name: 'Original Ratio',
+          sizeText: 'Natural Aspect Ratio',
+          badge: 'Full Photo',
+          ratioW: 0,
+          ratioH: 0,
+          outW: 0,
+          outH: 0,
+          exactPx: false,
+        },
+      ];
+
+      // =====================================================================
+      // 2. APPLICATION STATE & CACHED OFFSCREEN LAYERS
+      // =====================================================================
+
+      const MAX_WORK_DIM = 1280; // Crisp working resolution for 60fps smoothness
+      const MAX_AI_DIM = 1024;   // Reliable WebGL/WASM inference resolution
+
+      const state = {
+        hasImage: false,
+        originalImg: null,
+        naturalW: 0,
+        naturalH: 0,
+
+        // Cached working canvases (rebuilt only on upload or edge slider change)
+        workCanvas: document.createElement('canvas'),
+        cutoutCanvas: document.createElement('canvas'),
+        innerMaskCanvas: document.createElement('canvas'),
+        maskCanvas: document.createElement('canvas'),
+        lwBgCanvas: document.createElement('canvas'),
+        lwWrapCanvas: document.createElement('canvas'),
+        maskReady: false,
+        maskBBox: null, // { minX, minY, maxX, maxY } in workCanvas coordinates
+
+        // Cached buffers for <15ms Edge Refine slider updates
+        workRgba: null,
+        guidedAlpha: null,
+
+        // Mode & Engine Metadata
+        bgRemoved: true,
+        engineName: '',
+        compareOriginal: false,
+
+        // Background State
+        bgType: 'transparent', // 'transparent' | 'gradient' | 'solid' | 'studio' | 'image'
+        bgSolidColor: '#ffffff',
+        bgGradient: { ...GRADIENT_PRESETS[0] },
+        bgStudioId: STUDIO_STYLES[0].id,
+        bgImage: null,
+
+        // Passport Preset State
+        activePreset: PASSPORT_PRESETS.find((p) => p.id === 'original'),
+        showGuides: true,
+
+        // Transform State (Zoom 30% – 500%, Pan -150% – +150%)
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+
+        // Studio Edge & Blend Settings (Tuned to eliminate halo & detached look)
+        haloTrim: 1.2,
+        edgeSmoothness: 1.1,
+        decontamStrength: 0.85,
+        lightWrap: 0.35,
+        studioShadow: 0.18,
+
+        // Pointer Drag & 2-Finger Pinch State
+        dragging: false,
+        activePointerId: null,
+        dragStartClientX: 0,
+        dragStartClientY: 0,
+        dragOrigPanX: 0,
+        dragOrigPanY: 0,
+        activePointers: new Map(),
+        pinchStartDist: 0,
+        pinchStartZoom: 1,
+      };
+
+      // =====================================================================
+      // 3. DOM ELEMENT REFERENCES
+      // =====================================================================
+
+      const els = {
+        photoInput: document.getElementById('photoInput'),
+        customBgInput: document.getElementById('customBgInput'),
+
+        headerUploadBtn: document.getElementById('headerUploadBtn'),
+        quickPassportBtn: document.getElementById('quickPassportBtn'),
+        quickOriginalBtn: document.getElementById('quickOriginalBtn'),
+
+        downloadMenuWrap: document.getElementById('downloadMenuWrap'),
+        downloadMenuBtn: document.getElementById('downloadMenuBtn'),
+        downloadChevron: document.getElementById('downloadChevron'),
+        downloadDropdown: document.getElementById('downloadDropdown'),
+        downloadSizeGrid: document.getElementById('downloadSizeGrid'),
+        exportFormatPill: document.getElementById('exportFormatPill'),
+        exportHintText: document.getElementById('exportHintText'),
+
+        stageDownloadWrap: document.getElementById('stageDownloadWrap'),
+        stageDownloadBtn: document.getElementById('stageDownloadBtn'),
+        stageDownloadPopover: document.getElementById('stageDownloadPopover'),
+        stageDownloadSizeGrid: document.getElementById('stageDownloadSizeGrid'),
+        stageExportFormatPill: document.getElementById('stageExportFormatPill'),
+
+        stageStatusDot: document.getElementById('stageStatusDot'),
+        stageStatusText: document.getElementById('stageStatusText'),
+        engineBadge: document.getElementById('engineBadge'),
+        presetDimensionBadge: document.getElementById('presetDimensionBadge'),
+
+        canvasStage: document.getElementById('canvasStage'),
+        dragOverlay: document.getElementById('dragOverlay'),
+        emptyState: document.getElementById('emptyState'),
+        canvasFrame: document.getElementById('canvasFrame'),
+        displayCanvas: document.getElementById('displayCanvas'),
+        progressPill: document.getElementById('progressPill'),
+        progressText: document.getElementById('progressText'),
+        compareBadge: document.getElementById('compareBadge'),
+
+        transformBar: document.getElementById('transformBar'),
+        zoomSlider: document.getElementById('zoomSlider'),
+        zoomValueBadge: document.getElementById('zoomValueBadge'),
+        zoomOutBtn: document.getElementById('zoomOutBtn'),
+        zoomInBtn: document.getElementById('zoomInBtn'),
+        panXSlider: document.getElementById('panXSlider'),
+        panYSlider: document.getElementById('panYSlider'),
+        panXVal: document.getElementById('panXVal'),
+        panYVal: document.getElementById('panYVal'),
+        compareOriginalBtn: document.getElementById('compareOriginalBtn'),
+        resetTransformBtn: document.getElementById('resetTransformBtn'),
+
+        btnTransparentBg: document.getElementById('btnTransparentBg'),
+        gradientGrid: document.getElementById('gradientGrid'),
+        customGradColor1: document.getElementById('customGradColor1'),
+        customGradColor2: document.getElementById('customGradColor2'),
+        customGradAngle: document.getElementById('customGradAngle'),
+        customGradAngleVal: document.getElementById('customGradAngleVal'),
+        applyCustomGradBtn: document.getElementById('applyCustomGradBtn'),
+
+        solidGrid: document.getElementById('solidGrid'),
+        customSolidPicker: document.getElementById('customSolidPicker'),
+        customSolidHex: document.getElementById('customSolidHex'),
+        applyCustomSolidBtn: document.getElementById('applyCustomSolidBtn'),
+
+        studioStyleGrid: document.getElementById('studioStyleGrid'),
+        uploadCustomBgBtn: document.getElementById('uploadCustomBgBtn'),
+
+        panelAutoPassportBtn: document.getElementById('panelAutoPassportBtn'),
+        toggleGuidesBtn: document.getElementById('toggleGuidesBtn'),
+        toggleGuidesLabel: document.getElementById('toggleGuidesLabel'),
+        passportPresetGrid: document.getElementById('passportPresetGrid'),
+
+        haloTrimSlider: document.getElementById('haloTrimSlider'),
+        haloTrimVal: document.getElementById('haloTrimVal'),
+        edgeSmoothSlider: document.getElementById('edgeSmoothSlider'),
+        edgeSmoothVal: document.getElementById('edgeSmoothVal'),
+        decontamSlider: document.getElementById('decontamSlider'),
+        decontamVal: document.getElementById('decontamVal'),
+        lightWrapSlider: document.getElementById('lightWrapSlider'),
+        lightWrapVal: document.getElementById('lightWrapVal'),
+        studioShadowSlider: document.getElementById('studioShadowSlider'),
+        studioShadowVal: document.getElementById('studioShadowVal'),
+        resetEdgeBtn: document.getElementById('resetEdgeBtn'),
+        rerunAiBtn: document.getElementById('rerunAiBtn'),
+
+        toastContainer: document.getElementById('toastContainer'),
+      };
+
+      // =====================================================================
+      // 4. UI UTILITIES & TOAST NOTIFICATIONS
+      // =====================================================================
+
+      function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        const styles = {
+          success: 'bg-emerald-950/95 border-emerald-500/50 text-emerald-100',
+          error: 'bg-rose-950/95 border-rose-500/50 text-rose-100',
+          info: 'bg-slate-900/95 border-cyan-500/40 text-slate-100',
+        };
+        toast.className = `pointer-events-auto px-4 py-2.5 rounded-2xl border shadow-2xl backdrop-blur-xl text-xs font-bold flex items-center gap-2 animate-pop-in ${styles[type] || styles.info}`;
+        toast.textContent = message;
+        els.toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(8px)';
+          setTimeout(() => toast.remove(), 260);
+        }, 3200);
+      }
+
+      function setProgress(active, text = 'Removing background...') {
+        els.progressText.textContent = text;
+        els.progressPill.classList.toggle('hidden', !active);
+      }
+
+      function switchTab(tabKey) {
+        document.querySelectorAll('.tab-btn').forEach((btn) => {
+          const isActive = btn.dataset.tab === tabKey;
+          btn.classList.toggle('bg-cyan-500/15', isActive);
+          btn.classList.toggle('text-cyan-300', isActive);
+          btn.classList.toggle('border-cyan-500/30', isActive);
+          btn.classList.toggle('font-extrabold', isActive);
+          btn.classList.toggle('text-slate-400', !isActive);
+          btn.classList.toggle('border-transparent', !isActive);
+          btn.classList.toggle('font-bold', !isActive);
+        });
+
+        document.querySelectorAll('.tab-panel').forEach((panel) => {
+          panel.classList.toggle('hidden', panel.id !== `panel-${tabKey}`);
+        });
+      }
+
+      function syncTransformControls() {
+        const zoomPct = Math.round(state.zoom * 100);
+        els.zoomSlider.value = String(zoomPct);
+        els.zoomValueBadge.textContent = `${zoomPct}%`;
+
+        const px = Math.round(state.panX * 100);
+        const py = Math.round(state.panY * 100);
+        els.panXSlider.value = String(px);
+        els.panYSlider.value = String(py);
+        els.panXVal.textContent = `${px}%`;
+        els.panYVal.textContent = `${py}%`;
+      }
+
+      function syncEdgeControls() {
+        els.haloTrimSlider.value = String(state.haloTrim);
+        els.haloTrimVal.textContent = `${state.haloTrim.toFixed(1)} px`;
+
+        els.edgeSmoothSlider.value = String(state.edgeSmoothness);
+        els.edgeSmoothVal.textContent = `${state.edgeSmoothness.toFixed(1)} px`;
+
+        const decPct = Math.round(state.decontamStrength * 100);
+        els.decontamSlider.value = String(decPct);
+        els.decontamVal.textContent = `${decPct}%`;
+
+        const lwPct = Math.round(state.lightWrap * 100);
+        els.lightWrapSlider.value = String(lwPct);
+        els.lightWrapVal.textContent = `${lwPct}%`;
+
+        const shPct = Math.round(state.studioShadow * 100);
+        els.studioShadowSlider.value = String(shPct);
+        els.studioShadowVal.textContent = `${shPct}%`;
+      }
+
+      function updateUIState() {
+        const has = state.hasImage;
+        const isTrans = state.bgType === 'transparent';
+        const isPassport = state.activePreset.id !== 'original';
+
+        // Empty state vs Live Canvas Frame
+        els.emptyState.classList.toggle('hidden', has);
+        els.canvasFrame.classList.toggle('hidden', !has);
+        els.canvasFrame.classList.toggle('checkerboard', isTrans);
+
+        // Right-side floating Download Icon on Picture
+        els.stageDownloadWrap.classList.toggle('hidden', !has);
+
+        // Top Dashboard contextual buttons next to Upload Image
+        els.quickPassportBtn.classList.toggle('hidden', !has);
+        els.quickOriginalBtn.classList.toggle('hidden', !has || !isPassport);
+
+        // Download Buttons
+        els.downloadMenuBtn.disabled = !has;
+        els.stageDownloadBtn.disabled = !has;
+
+        // Transform Bar
+        els.transformBar.classList.toggle('opacity-50', !has);
+        els.transformBar.classList.toggle('pointer-events-none', !has);
+
+        // Status Strip
+        els.stageStatusDot.className = has
+          ? 'w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/70'
+          : 'w-2 h-2 rounded-full bg-slate-600';
+
+        if (!has) {
+          els.stageStatusText.textContent = 'Ready — Upload, drag-drop, or press Ctrl+V to paste a photo';
+        } else if (isPassport) {
+          els.stageStatusText.textContent = `Passport Mode: ${state.activePreset.name} (${state.activePreset.sizeText}) • Drag to adjust`;
+        } else {
+          els.stageStatusText.textContent = 'Cutout Ready — Choose a Gradient, Solid Color, or click Passport Size Image';
+        }
+
+        // Engine & Dimension Badges
+        els.engineBadge.classList.toggle('hidden', !has || !state.engineName);
+        if (state.engineName) {
+          els.engineBadge.textContent = state.engineName;
+        }
+
+        els.presetDimensionBadge.classList.toggle('hidden', !has);
+        if (has) {
+          const dim = getTargetOutputDimensions();
+          els.presetDimensionBadge.textContent = isPassport
+            ? `${state.activePreset.sizeText} • ${dim.w}×${dim.h}px`
+            : `${dim.w}×${dim.h}px`;
+        }
+
+        // Export Format Pills
+        const fmt = isTrans ? 'PNG' : 'JPG';
+        els.exportFormatPill.textContent = fmt;
+        els.stageExportFormatPill.textContent = fmt;
+        els.exportHintText.textContent = isTrans
+          ? 'Transparent BG → Exports optimized PNG ≤ selected KB'
+          : 'Custom BG → Exports crisp JPG ≤ selected KB';
+
+        // Highlight Transparent Button
+        els.btnTransparentBg.classList.toggle('border-cyan-400', isTrans);
+        els.btnTransparentBg.classList.toggle('border-slate-800', !isTrans);
+
+        // Highlight Active Gradient / Solid / Studio Swatches
+        document.querySelectorAll('.grad-swatch').forEach((el) => {
+          const active = state.bgType === 'gradient' && state.bgGradient.id === el.dataset.id;
+          el.classList.toggle('ring-2', active);
+          el.classList.toggle('ring-cyan-400', active);
+          el.classList.toggle('ring-offset-2', active);
+          el.classList.toggle('ring-offset-slate-900', active);
+        });
+
+        document.querySelectorAll('.solid-swatch').forEach((el) => {
+          const active = state.bgType === 'solid' && state.bgSolidColor.toLowerCase() === el.dataset.hex.toLowerCase();
+          el.classList.toggle('ring-2', active);
+          el.classList.toggle('ring-cyan-400', active);
+          el.classList.toggle('ring-offset-2', active);
+          el.classList.toggle('ring-offset-slate-900', active);
+        });
+
+        document.querySelectorAll('.studio-swatch').forEach((el) => {
+          const active = state.bgType === 'studio' && state.bgStudioId === el.dataset.id;
+          el.classList.toggle('border-cyan-400', active);
+          el.classList.toggle('bg-cyan-500/10', active);
+          el.classList.toggle('border-slate-800', !active);
+        });
+
+        // Highlight Active Passport Preset Card
+        document.querySelectorAll('.preset-card').forEach((el) => {
+          const active = state.activePreset.id === el.dataset.id;
+          el.classList.toggle('border-indigo-400', active);
+          el.classList.toggle('bg-indigo-500/15', active);
+          el.classList.toggle('border-slate-800', !active);
+          el.classList.toggle('bg-slate-950/60', !active);
+        });
+
+        // Guides Button Label
+        els.toggleGuidesLabel.textContent = state.showGuides ? 'Guides: On' : 'Guides: Off';
+      }
+
+      // =====================================================================
+      // 5. STUDIO ALPHA MATTING ENGINE (GUIDED FILTER + DECONTAMINATION)
+      // =====================================================================
+
+      /**
+       * O(N) Separable Box Filter on Float32Array
+       */
+      function boxFilterFloat32(src, w, h, r) {
+        if (r <= 0) return new Float32Array(src);
+        const tmp = new Float32Array(w * h);
+        const dst = new Float32Array(w * h);
+        const inv = 1 / (2 * r + 1);
+
+        // Horizontal pass
+        for (let y = 0; y < h; y++) {
+          const row = y * w;
+          let sum = src[row] * (r + 1);
+          for (let x = 1; x <= r; x++) {
+            sum += src[row + Math.min(w - 1, x)];
+          }
+          for (let x = 0; x < w; x++) {
+            tmp[row + x] = sum * inv;
+            const addIdx = Math.min(w - 1, x + r + 1);
+            const subIdx = Math.max(0, x - r);
+            sum += src[row + addIdx] - src[row + subIdx];
+          }
+        }
+
+        // Vertical pass
+        for (let x = 0; x < w; x++) {
+          let sum = tmp[x] * (r + 1);
+          for (let y = 1; y <= r; y++) {
+            sum += tmp[Math.min(h - 1, y) * w + x];
+          }
+          for (let y = 0; y < h; y++) {
+            dst[y * w + x] = sum * inv;
+            const addRow = Math.min(h - 1, y + r + 1);
+            const subRow = Math.max(0, y - r);
+            sum += tmp[addRow * w + x] - tmp[subRow * w + x];
+          }
+        }
+
+        return dst;
+      }
+
+      /**
+       * Edge-Aware Guided Image Filter: Snaps coarse AI matte onto real image edges
+       */
+      function applyGuidedFilter(I, p, w, h, r, eps) {
+        const n = w * h;
+        const meanI = boxFilterFloat32(I, w, h, r);
+        const meanP = boxFilterFloat32(p, w, h, r);
+
+        const II = new Float32Array(n);
+        const IP = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          II[i] = I[i] * I[i];
+          IP[i] = I[i] * p[i];
+        }
+
+        const meanII = boxFilterFloat32(II, w, h, r);
+        const meanIP = boxFilterFloat32(IP, w, h, r);
+
+        const a = new Float32Array(n);
+        const b = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          const varI = meanII[i] - meanI[i] * meanI[i];
+          const covIP = meanIP[i] - meanI[i] * meanP[i];
+          a[i] = covIP / (varI + eps);
+          b[i] = meanP[i] - a[i] * meanI[i];
+        }
+
+        const meanA = boxFilterFloat32(a, w, h, r);
+        const meanB = boxFilterFloat32(b, w, h, r);
+
+        const q = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          const v = meanA[i] * I[i] + meanB[i];
+          q[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+        }
+        return q;
+      }
+
+      /**
+       * Separable Integer Min-Filter (Erosion) with zero short-circuit
+       */
+      function erodeAlphaInt(src, w, h, r) {
+        if (r <= 0) return src;
+        const tmp = new Float32Array(w * h);
+        const dst = new Float32Array(w * h);
+
+        for (let y = 0; y < h; y++) {
+          const row = y * w;
+          for (let x = 0; x < w; x++) {
+            const center = src[row + x];
+            if (center === 0) {
+              tmp[row + x] = 0;
+              continue;
+            }
+            let m = center;
+            const x0 = Math.max(0, x - r);
+            const x1 = Math.min(w - 1, x + r);
+            for (let k = x0; k <= x1; k++) {
+              const v = src[row + k];
+              if (v < m) {
+                m = v;
+                if (m === 0) break;
+              }
+            }
+            tmp[row + x] = m;
+          }
+        }
+
+        for (let y = 0; y < h; y++) {
+          const y0 = Math.max(0, y - r);
+          const y1 = Math.min(h - 1, y + r);
+          for (let x = 0; x < w; x++) {
+            const center = tmp[y * w + x];
+            if (center === 0) {
+              dst[y * w + x] = 0;
+              continue;
+            }
+            let m = center;
+            for (let k = y0; k <= y1; k++) {
+              const v = tmp[k * w + x];
+              if (v < m) {
+                m = v;
+                if (m === 0) break;
+              }
+            }
+            dst[y * w + x] = m;
+          }
+        }
+
+        return dst;
+      }
+
+      /**
+       * Sub-Pixel Smooth Erosion (Interpolates between floor and ceil radius)
+       */
+      function erodeAlphaSmooth(src, w, h, radius) {
+        if (radius <= 0.01) return src;
+        const rLow = Math.floor(radius);
+        const rHigh = Math.ceil(radius);
+        if (rLow === rHigh) return erodeAlphaInt(src, w, h, rLow);
+
+        const aLow = rLow === 0 ? src : erodeAlphaInt(src, w, h, rLow);
+        const aHigh = erodeAlphaInt(src, w, h, rHigh);
+        const t = radius - rLow;
+        const out = new Float32Array(src.length);
+        for (let i = 0; i < src.length; i++) {
+          out[i] = aLow[i] * (1 - t) + aHigh[i] * t;
+        }
+        return out;
+      }
+
+      /**
+       * Runs Guided Filter ONCE per segmentation and caches workRgba & guidedAlpha
+       */
+      function prepareGuidedAlphaCache() {
+        if (!state.hasImage || !state.maskReady) return;
+        const w = state.workCanvas.width;
+        const h = state.workCanvas.height;
+        const n = w * h;
+
+        const workCtx = state.workCanvas.getContext('2d', { willReadFrequently: true });
+        const workData = workCtx.getImageData(0, 0, w, h).data;
+
+        const maskCtx = state.maskCanvas.getContext('2d', { willReadFrequently: true });
+        const maskData = maskCtx.getImageData(0, 0, w, h).data;
+
+        const guideLum = new Float32Array(n);
+        const rawAlpha = new Float32Array(n);
+        for (let i = 0; i < n; i++) {
+          const idx = i * 4;
+          guideLum[i] = (0.299 * workData[idx] + 0.587 * workData[idx + 1] + 0.114 * workData[idx + 2]) / 255;
+          rawAlpha[i] = maskData[idx + 3] / 255;
+        }
+
+        const guideRadius = Math.max(3, Math.min(7, Math.round(Math.max(w, h) / 240)));
+        state.workRgba = workData;
+        state.guidedAlpha = applyGuidedFilter(guideLum, rawAlpha, w, h, guideRadius, 0.0022);
+      }
+
+      /**
+       * Fast Studio Cutout Cache Builder (<15ms on slider updates):
+       * 1. Halo Trim sub-pixel erosion
+       * 2. Smooth S-curve contrast ramp (eliminates misty halo)
+       * 3. Gentle Edge Feather
+       * 4. Active-Edge-Band Foreground Color Decontamination (removes color spill)
+       * 5. Generates cutoutCanvas + innerMaskCanvas (for 60fps BG Light Wrap)
+       */
+      function rebuildCutoutCache() {
+        if (!state.hasImage || !state.maskReady) return;
+        if (!state.guidedAlpha || !state.workRgba) {
+          prepareGuidedAlphaCache();
+        }
+
+        const w = state.workCanvas.width;
+        const h = state.workCanvas.height;
+        const n = w * h;
+        const workData = state.workRgba;
+
+        // 1. Copy cached Guided Filter alpha
+        let alpha = new Float32Array(state.guidedAlpha);
+
+        // 2. Halo Trim Erosion
+        if (state.haloTrim > 0.01) {
+          alpha = erodeAlphaSmooth(alpha, w, h, state.haloTrim);
+        }
+
+        // 3. Smooth S-curve contrast ramp
+        const lowCut = 0.24;
+        const highCut = 0.78;
+        const span = highCut - lowCut;
+        for (let i = 0; i < n; i++) {
+          let a = alpha[i];
+          if (a <= lowCut) {
+            a = 0;
+          } else if (a >= highCut) {
+            a = 1;
+          } else {
+            const t = (a - lowCut) / span;
+            a = t * t * (3 - 2 * t);
+          }
+          alpha[i] = a;
+        }
+
+        // 4. Edge Smoothness / Feather
+        if (state.edgeSmoothness > 0.1) {
+          const featherR = Math.max(1, Math.round(state.edgeSmoothness));
+          const blurred = boxFilterFloat32(alpha, w, h, featherR);
+          const mix = Math.min(1, state.edgeSmoothness / featherR);
+          for (let i = 0; i < n; i++) {
+            if (alpha[i] > 0.001 || blurred[i] > 0.001) {
+              alpha[i] = alpha[i] * (1 - mix) + blurred[i] * mix;
+            }
+          }
+        }
+
+        // 5. Active-Band Foreground Color Decontamination (De-fringing)
+        const outCanvas = state.cutoutCanvas;
+        outCanvas.width = w;
+        outCanvas.height = h;
+        const outCtx = outCanvas.getContext('2d');
+        const outImg = outCtx.createImageData(w, h);
+        const od = outImg.data;
+
+        const fgR = new Float32Array(n);
+        const fgG = new Float32Array(n);
+        const fgB = new Float32Array(n);
+        const valid = new Uint8Array(n);
+        const edgeIndices = [];
+
+        for (let y = 0; y < h; y++) {
+          const row = y * w;
+          for (let x = 0; x < w; x++) {
+            const pos = row + x;
+            const a = alpha[pos];
+            if (a >= 0.92) {
+              const idx = pos * 4;
+              fgR[pos] = workData[idx];
+              fgG[pos] = workData[idx + 1];
+              fgB[pos] = workData[idx + 2];
+              valid[pos] = 1;
+            } else if (a > 0.005 && x > 0 && x < w - 1 && y > 0 && y < h - 1) {
+              edgeIndices.push(pos);
+            }
+          }
+        }
+
+        // Dilate clean interior foreground color outward across semi-transparent edge pixels
+        if (state.decontamStrength > 0.01 && edgeIndices.length > 0) {
+          let pending = edgeIndices;
+          for (let pass = 0; pass < 6 && pending.length > 0; pass++) {
+            const newlyValid = [];
+            const nextPending = [];
+            const newR = [];
+            const newG = [];
+            const newB = [];
+
+            for (let k = 0; k < pending.length; k++) {
+              const pos = pending[k];
+              let sr = 0;
+              let sg = 0;
+              let sb = 0;
+              let cnt = 0;
+              const n0 = pos - 1;
+              const n1 = pos + 1;
+              const n2 = pos - w;
+              const n3 = pos + w;
+              if (valid[n0]) { sr += fgR[n0]; sg += fgG[n0]; sb += fgB[n0]; cnt++; }
+              if (valid[n1]) { sr += fgR[n1]; sg += fgG[n1]; sb += fgB[n1]; cnt++; }
+              if (valid[n2]) { sr += fgR[n2]; sg += fgG[n2]; sb += fgB[n2]; cnt++; }
+              if (valid[n3]) { sr += fgR[n3]; sg += fgG[n3]; sb += fgB[n3]; cnt++; }
+
+              if (cnt > 0) {
+                newlyValid.push(pos);
+                newR.push(sr / cnt);
+                newG.push(sg / cnt);
+                newB.push(sb / cnt);
+              } else {
+                nextPending.push(pos);
+              }
+            }
+
+            for (let k = 0; k < newlyValid.length; k++) {
+              const pos = newlyValid[k];
+              fgR[pos] = newR[k];
+              fgG[pos] = newG[k];
+              fgB[pos] = newB[k];
+              valid[pos] = 1;
+            }
+            pending = nextPending;
+          }
+        }
+
+        // Write decontaminated RGBA + compute tight subject bounding box
+        let minX = w;
+        let minY = h;
+        let maxX = 0;
+        let maxY = 0;
+        let fgCount = 0;
+        const decStrength = state.decontamStrength;
+
+        for (let y = 0; y < h; y++) {
+          const row = y * w;
+          for (let x = 0; x < w; x++) {
+            const pos = row + x;
+            const idx = pos * 4;
+            const a = alpha[pos];
+
+            if (a <= 0.004) {
+              od[idx] = 0;
+              od[idx + 1] = 0;
+              od[idx + 2] = 0;
+              od[idx + 3] = 0;
+              continue;
+            }
+
+            if (a > 0.35) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              fgCount++;
+            }
+
+            if (a < 0.92 && valid[pos] && decStrength > 0.01) {
+              const blend = Math.min(1, (1 - a) * 1.35 * decStrength);
+              od[idx] = Math.round(workData[idx] * (1 - blend) + fgR[pos] * blend);
+              od[idx + 1] = Math.round(workData[idx + 1] * (1 - blend) + fgG[pos] * blend);
+              od[idx + 2] = Math.round(workData[idx + 2] * (1 - blend) + fgB[pos] * blend);
+            } else {
+              od[idx] = workData[idx];
+              od[idx + 1] = workData[idx + 1];
+              od[idx + 2] = workData[idx + 2];
+            }
+            od[idx + 3] = Math.min(255, Math.max(0, Math.round(a * 255)));
+          }
+        }
+        outCtx.putImageData(outImg, 0, 0);
+
+        if (fgCount > 50 && maxX > minX && maxY > minY) {
+          state.maskBBox = { minX, minY, maxX, maxY };
+        } else {
+          state.maskBBox = { minX: 0, minY: 0, maxX: w - 1, maxY: h - 1 };
+        }
+
+        // 6. Build soft eroded inner mask for real-time 60fps BG Light Wrap
+        const rimRadius = Math.max(3, Math.round(Math.max(w, h) / 145));
+        const innerEroded = erodeAlphaInt(alpha, w, h, rimRadius);
+        const innerSoft = boxFilterFloat32(innerEroded, w, h, Math.max(2, Math.round(rimRadius * 0.75)));
+
+        const innerCanvas = state.innerMaskCanvas;
+        innerCanvas.width = w;
+        innerCanvas.height = h;
+        const innerCtx = innerCanvas.getContext('2d');
+        const innerImg = innerCtx.createImageData(w, h);
+        const idata = innerImg.data;
+        for (let i = 0; i < n; i++) {
+          const idx = i * 4;
+          idata[idx] = 255;
+          idata[idx + 1] = 255;
+          idata[idx + 2] = 255;
+          idata[idx + 3] = Math.min(255, Math.max(0, Math.round(innerSoft[i] * 255)));
+        }
+        innerCtx.putImageData(innerImg, 0, 0);
+      }
+
+      // =====================================================================
+      // 6. CLIENT-SIDE AI SEGMENTATION (MEDIAPIPE + SMART LOCAL FALLBACK)
+      // =====================================================================
+
+      let selfieSegInstance = null;
+      let segResolve = null;
+      let aiJobCounter = 0;
+      let mpQueue = Promise.resolve();
+
+      function waitForMediaPipe(timeoutMs = 2500) {
+        if (typeof window.SelfieSegmentation === 'function') {
+          return Promise.resolve(true);
+        }
+        return new Promise((resolve) => {
+          const start = Date.now();
+          const timer = setInterval(() => {
+            if (typeof window.SelfieSegmentation === 'function') {
+              clearInterval(timer);
+              resolve(true);
+            } else if (Date.now() - start >= timeoutMs) {
+              clearInterval(timer);
+              resolve(false);
+            }
+          }, 120);
+        });
+      }
+
+      function getMediaPipeSegmenter() {
+        if (selfieSegInstance) return selfieSegInstance;
+        if (typeof window.SelfieSegmentation !== 'function') return null;
+
+        try {
+          const seg = new window.SelfieSegmentation({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+          });
+          seg.setOptions({ modelSelection: 1 });
+          seg.onResults((results) => {
+            if (typeof segResolve === 'function') {
+              const fn = segResolve;
+              segResolve = null;
+              fn(results);
+            }
+          });
+          selfieSegInstance = seg;
+          return seg;
+        } catch (err) {
+          console.warn('MediaPipe init warning:', err);
+          return null;
+        }
+      }
+
+      async function runMediaPipeMask(workCanvas) {
+        await waitForMediaPipe(2500);
+        const seg = getMediaPipeSegmenter();
+        if (!seg) throw new Error('MediaPipe script unavailable');
+
+        const scale = Math.min(1, MAX_AI_DIM / Math.max(workCanvas.width, workCanvas.height));
+        const aiW = Math.max(64, Math.round(workCanvas.width * scale));
+        const aiH = Math.max(64, Math.round(workCanvas.height * scale));
+
+        const aiInput = document.createElement('canvas');
+        aiInput.width = aiW;
+        aiInput.height = aiH;
+        aiInput.getContext('2d').drawImage(workCanvas, 0, 0, aiW, aiH);
+
+        // Serialize sends so rapid uploads never collide
+        const results = await new Promise((resolve, reject) => {
+          mpQueue = mpQueue
+            .catch(() => {})
+            .then(
+              () =>
+                new Promise((innerRes, innerRej) => {
+                  const timer = setTimeout(() => {
+                    segResolve = null;
+                    innerRej(new Error('MediaPipe timeout'));
+                  }, 10000);
+
+                  segResolve = (res) => {
+                    clearTimeout(timer);
+                    innerRes(res);
+                  };
+
+                  Promise.resolve(seg.send({ image: aiInput })).catch((err) => {
+                    clearTimeout(timer);
+                    segResolve = null;
+                    innerRej(err);
+                  });
+                })
+            )
+            .then(resolve, reject);
+        });
+
+        if (!results || !results.segmentationMask) {
+          throw new Error('Empty MediaPipe segmentationMask');
+        }
+
+        // Extract mask safely across all browser GPU implementations (Alpha OR Red channel)
+        const rawC = document.createElement('canvas');
+        rawC.width = aiW;
+        rawC.height = aiH;
+        const rawCtx = rawC.getContext('2d', { willReadFrequently: true });
+        rawCtx.clearRect(0, 0, aiW, aiH);
+        rawCtx.drawImage(results.segmentationMask, 0, 0, aiW, aiH);
+
+        const imgData = rawCtx.getImageData(0, 0, aiW, aiH);
+        const d = imgData.data;
+        const total = aiW * aiH;
+
+        let minA = 255;
+        let maxA = 0;
+        let minR = 255;
+        let maxR = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i];
+          const a = d[i + 3];
+          if (a < minA) minA = a;
+          if (a > maxA) maxA = a;
+          if (r < minR) minR = r;
+          if (r > maxR) maxR = r;
+        }
+
+        const useAlphaChannel = maxA - minA > 15;
+        const useRedChannel = !useAlphaChannel && maxR - minR > 15;
+        if (!useAlphaChannel && !useRedChannel) {
+          throw new Error('Mask has no channel variance');
+        }
+
+        let fgPixels = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const val = useAlphaChannel ? d[i + 3] : d[i];
+          d[i] = 255;
+          d[i + 1] = 255;
+          d[i + 2] = 255;
+          d[i + 3] = val;
+          if (val > 128) fgPixels++;
+        }
+
+        const ratio = fgPixels / total;
+        if (ratio < 0.015 || ratio > 0.99) {
+          throw new Error(`Invalid mask coverage (${(ratio * 100).toFixed(1)}%)`);
+        }
+
+        rawCtx.putImageData(imgData, 0, 0);
+
+        // Upscale soft mask smoothly onto state.maskCanvas
+        const mw = workCanvas.width;
+        const mh = workCanvas.height;
+        state.maskCanvas.width = mw;
+        state.maskCanvas.height = mh;
+        const mCtx = state.maskCanvas.getContext('2d');
+        mCtx.clearRect(0, 0, mw, mh);
+        mCtx.imageSmoothingEnabled = true;
+        mCtx.imageSmoothingQuality = 'high';
+        mCtx.drawImage(rawC, 0, 0, mw, mh);
+      }
+
+      /**
+       * Fast Client-Side Border-Seeded Flood-Fill Fallback (if MediaPipe CDN is blocked)
+       */
+      function runSmartFallbackMask(workCanvas) {
+        const w = workCanvas.width;
+        const h = workCanvas.height;
+        const sw = Math.min(280, w);
+        const sh = Math.max(64, Math.round((h / w) * sw));
+
+        const small = document.createElement('canvas');
+        small.width = sw;
+        small.height = sh;
+        const sCtx = small.getContext('2d', { willReadFrequently: true });
+        sCtx.drawImage(workCanvas, 0, 0, sw, sh);
+        const px = sCtx.getImageData(0, 0, sw, sh).data;
+
+        // Sample border background color
+        let br = 0;
+        let bg = 0;
+        let bb = 0;
+        let bcnt = 0;
+        for (let x = 0; x < sw; x++) {
+          const top = x * 4;
+          const bot = ((sh - 1) * sw + x) * 4;
+          br += px[top] + px[bot];
+          bg += px[top + 1] + px[bot + 1];
+          bb += px[top + 2] + px[bot + 2];
+          bcnt += 2;
+        }
+        for (let y = 1; y < sh - 1; y++) {
+          const l = (y * sw) * 4;
+          const r = (y * sw + sw - 1) * 4;
+          br += px[l] + px[r];
+          bg += px[l + 1] + px[r + 1];
+          bb += px[l + 2] + px[r + 2];
+          bcnt += 2;
+        }
+        br /= bcnt;
+        bg /= bcnt;
+        bb /= bcnt;
+
+        const visited = new Uint8Array(sw * sh);
+        const bgMask = new Uint8Array(sw * sh);
+        const queue = new Int32Array(sw * sh);
+        let qHead = 0;
+        let qTail = 0;
+
+        const colorDist = (idx, r, g, b) => {
+          const dr = px[idx] - r;
+          const dg = px[idx + 1] - g;
+          const db = px[idx + 2] - b;
+          return Math.sqrt(dr * dr + dg * dg + db * db);
+        };
+
+        const seed = (x, y) => {
+          const p = y * sw + x;
+          if (visited[p]) return;
+          if (colorDist(p * 4, br, bg, bb) < 75) {
+            visited[p] = 1;
+            bgMask[p] = 1;
+            queue[qTail++] = p;
+          }
+        };
+
+        for (let x = 0; x < sw; x++) {
+          seed(x, 0);
+          seed(x, sh - 1);
+        }
+        for (let y = 0; y < sh; y++) {
+          seed(0, y);
+          seed(sw - 1, y);
+        }
+
+        const dirs = [-1, 1, -sw, sw];
+        while (qHead < qTail) {
+          const cur = queue[qHead++];
+          const cx = cur % sw;
+          const cy = (cur / sw) | 0;
+          const ci = cur * 4;
+
+          for (let d = 0; d < 4; d++) {
+            const nx = cx + (d === 0 ? -1 : d === 1 ? 1 : 0);
+            const ny = cy + (d === 2 ? -1 : d === 3 ? 1 : 0);
+            if (nx < 0 || nx >= sw || ny < 0 || ny >= sh) continue;
+            const np = ny * sw + nx;
+            if (visited[np]) continue;
+
+            const ni = np * 4;
+            const distFromBg = colorDist(ni, br, bg, bb);
+            const distFromNbr = colorDist(ni, px[ci], px[ci + 1], px[ci + 2]);
+            if (distFromBg < 58 || (distFromBg < 92 && distFromNbr < 22)) {
+              visited[np] = 1;
+              bgMask[np] = 1;
+              queue[qTail++] = np;
+            }
+          }
+        }
+
+        const outImg = sCtx.createImageData(sw, sh);
+        const od = outImg.data;
+        for (let i = 0; i < sw * sh; i++) {
+          const idx = i * 4;
+          od[idx] = 255;
+          od[idx + 1] = 255;
+          od[idx + 2] = 255;
+          od[idx + 3] = bgMask[i] ? 0 : 255;
+        }
+        sCtx.putImageData(outImg, 0, 0);
+
+        state.maskCanvas.width = w;
+        state.maskCanvas.height = h;
+        const mCtx = state.maskCanvas.getContext('2d');
+        mCtx.clearRect(0, 0, w, h);
+        mCtx.imageSmoothingEnabled = true;
+        mCtx.imageSmoothingQuality = 'high';
+        mCtx.drawImage(small, 0, 0, w, h);
+      }
+
+      async function runAutoBackgroundRemoval() {
+        if (!state.hasImage) return;
+        const jobId = ++aiJobCounter;
+        setProgress(true, 'Auto-removing background...');
+
+        try {
+          await runMediaPipeMask(state.workCanvas);
+          if (jobId !== aiJobCounter) return;
+          state.engineName = 'AI Studio Cutout';
+        } catch (err) {
+          if (jobId !== aiJobCounter) return;
+          console.warn('MediaPipe fallback triggered:', err.message);
+          runSmartFallbackMask(state.workCanvas);
+          state.engineName = 'Smart Local Cutout';
+        }
+
+        if (jobId !== aiJobCounter) return;
+        state.maskReady = true;
+        state.bgRemoved = true;
+        prepareGuidedAlphaCache();
+        rebuildCutoutCache();
+        setProgress(false);
+        updateUIState();
+        scheduleRender();
+        showToast('Background removed smoothly! Customize BG or click Passport Size.', 'success');
+      }
+
+      // =====================================================================
+      // 7. IMAGE UPLOAD & 1-CLICK AUTO PASSPORT FRAMING
+      // =====================================================================
+
+      function loadPhotoFile(file) {
+        if (!file || !file.type.startsWith('image/')) {
+          showToast('Please select a valid image file (JPG, PNG, WEBP).', 'error');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => showToast('Could not read the selected image.', 'error');
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onerror = () => showToast('Unsupported or corrupted image file.', 'error');
+          img.onload = () => {
+            // Prepare working resolution canvas (<= MAX_WORK_DIM)
+            const scale = Math.min(1, MAX_WORK_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+            const ww = Math.max(64, Math.round(img.naturalWidth * scale));
+            const wh = Math.max(64, Math.round(img.naturalHeight * scale));
+
+            state.workCanvas.width = ww;
+            state.workCanvas.height = wh;
+            const wCtx = state.workCanvas.getContext('2d');
+            wCtx.imageSmoothingEnabled = true;
+            wCtx.imageSmoothingQuality = 'high';
+            wCtx.drawImage(img, 0, 0, ww, wh);
+
+            state.originalImg = img;
+            state.naturalW = img.naturalWidth;
+            state.naturalH = img.naturalHeight;
+            state.hasImage = true;
+            state.maskReady = false;
+            state.maskBBox = null;
+            state.workRgba = null;
+            state.guidedAlpha = null;
+            state.bgRemoved = true;
+            state.bgType = 'transparent';
+            state.activePreset = PASSPORT_PRESETS.find((p) => p.id === 'original');
+            state.zoom = 1;
+            state.panX = 0;
+            state.panY = 0;
+            state.engineName = 'Processing...';
+
+            syncTransformControls();
+            updateUIState();
+            switchTab('bg');
+            resizeDisplayCanvas();
+            scheduleRender();
+
+            // Automatically remove background right away
+            runAutoBackgroundRemoval();
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function loadCustomBgFile(file) {
+        if (!file || !file.type.startsWith('image/')) {
+          showToast('Please select a valid background image.', 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            state.bgImage = img;
+            state.bgType = 'image';
+            updateUIState();
+            scheduleRender();
+            showToast('Custom background image applied!', 'success');
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      /**
+       * 1-Click Smart Passport Auto-Framing (Zero Face/Body Distortion):
+       * Uses subject mask bounding box to position head & shoulders properly
+       * inside the chosen passport aspect ratio.
+       */
+      function applyPassportAutoFraming(presetObj) {
+        if (!state.hasImage) return;
+        if (presetObj) {
+          state.activePreset = presetObj;
+        } else if (state.activePreset.id === 'original') {
+          state.activePreset = PASSPORT_PRESETS[0]; // Default to BD Passport (45×55 mm)
+        }
+
+        if (state.activePreset.id === 'original') {
+          state.zoom = 1;
+          state.panX = 0;
+          state.panY = 0;
+          syncTransformControls();
+          updateUIState();
+          resizeDisplayCanvas();
+          scheduleRender();
+          return;
+        }
+
+        const ww = state.workCanvas.width;
+        const wh = state.workCanvas.height;
+        const { w: targetW, h: targetH } = getTargetOutputDimensions();
+
+        // Base cover scale used by renderComposition when zoom === 1
+        const baseScale = Math.max(targetW / ww, targetH / wh);
+        const bbox = state.maskBBox || { minX: ww * 0.15, minY: wh * 0.08, maxX: ww * 0.85, maxY: wh * 0.95 };
+
+        const subW = Math.max(20, bbox.maxX - bbox.minX);
+        const subH = Math.max(20, bbox.maxY - bbox.minY);
+        const subCenterX = (bbox.minX + bbox.maxX) / 2;
+
+        // If full/three-quarter body shot, focus on upper head & shoulders portion
+        const subAspect = subH / subW;
+        let desiredZoom = 1;
+        if (subAspect > 1.45) {
+          // Tall / full-body portrait → zoom into upper torso & head (~48% of height)
+          const upperCropH = subH * 0.48;
+          desiredZoom = (targetH * 0.86) / (upperCropH * baseScale);
+        } else {
+          // Already head-and-shoulders / chest-up → fit nicely with ~10% headroom
+          const zoomByH = (targetH * 0.86) / (subH * baseScale);
+          const zoomByW = (targetW * 0.84) / (subW * baseScale);
+          desiredZoom = Math.min(Math.max(zoomByH, zoomByW * 0.9), 3.6);
+        }
+
+        state.zoom = Number(Math.max(0.5, Math.min(4.5, desiredZoom)).toFixed(2));
+
+        // Center horizontally on subject; leave clean ~10% headroom above top of head (bbox.minY)
+        const drawnW = ww * baseScale * state.zoom;
+        const drawnH = wh * baseScale * state.zoom;
+
+        const targetHeadTopY = targetH * 0.10;
+        const headOffsetFromImgCenterY = (bbox.minY / wh - 0.5) * drawnH;
+        const desiredImgCenterY = targetHeadTopY - headOffsetFromImgCenterY;
+        const panY = (desiredImgCenterY - targetH / 2) / targetH;
+
+        const subOffsetFromImgCenterX = (subCenterX / ww - 0.5) * drawnW;
+        const panX = -subOffsetFromImgCenterX / targetW;
+
+        state.panX = Number(Math.max(-1.5, Math.min(1.5, panX)).toFixed(3));
+        state.panY = Number(Math.max(-1.5, Math.min(1.5, panY)).toFixed(3));
+
+        syncTransformControls();
+        updateUIState();
+        resizeDisplayCanvas();
+        scheduleRender();
+        showToast(`Ready: ${state.activePreset.name} (${state.activePreset.sizeText}) — Now customize BG or Download!`, 'success');
+      }
+
+      // =====================================================================
+      // 8. 60FPS CANVAS COMPOSITING ENGINE (BG + LIGHT WRAP + SHADOW + GUIDES)
+      // =====================================================================
+
+      function getTargetOutputDimensions() {
+        if (!state.hasImage) return { w: 600, h: 750 };
+        const p = state.activePreset;
+        if (p.id !== 'original' && p.outW > 0 && p.outH > 0) {
+          return { w: p.outW, h: p.outH };
+        }
+        return { w: state.workCanvas.width, h: state.workCanvas.height };
+      }
+
+      function resizeDisplayCanvas() {
+        if (!state.hasImage) return;
+
+        const stageRect = els.canvasStage.getBoundingClientRect();
+        const isSmall = window.innerWidth < 640;
+        // Leave comfortable breathing room (and right space for floating save button)
+        const availW = Math.max(180, stageRect.width - (isSmall ? 74 : 112));
+        const availH = Math.max(220, stageRect.height - (isSmall ? 32 : 48));
+
+        const { w: targetW, h: targetH } = getTargetOutputDimensions();
+        const aspect = targetW / targetH;
+
+        let cssW = availW;
+        let cssH = cssW / aspect;
+        if (cssH > availH) {
+          cssH = availH;
+          cssW = cssH * aspect;
+        }
+
+        cssW = Math.max(120, Math.round(cssW));
+        cssH = Math.max(120, Math.round(cssH));
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        els.displayCanvas.style.width = `${cssW}px`;
+        els.displayCanvas.style.height = `${cssH}px`;
+        els.displayCanvas.width = Math.round(cssW * dpr);
+        els.displayCanvas.height = Math.round(cssH * dpr);
+      }
+
+      function drawBackgroundLayer(ctx, cw, ch) {
+        if (state.bgType === 'transparent') return;
+
+        if (state.bgType === 'solid') {
+          ctx.fillStyle = state.bgSolidColor;
+          ctx.fillRect(0, 0, cw, ch);
+          return;
+        }
+
+        if (state.bgType === 'gradient') {
+          const rad = ((state.bgGradient.angle - 90) * Math.PI) / 180;
+          const cx = cw / 2;
+          const cy = ch / 2;
+          const len = Math.hypot(cw, ch) / 2;
+          const x0 = cx - Math.cos(rad) * len;
+          const y0 = cy - Math.sin(rad) * len;
+          const x1 = cx + Math.cos(rad) * len;
+          const y1 = cy + Math.sin(rad) * len;
+          const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+          grad.addColorStop(0, state.bgGradient.c1);
+          grad.addColorStop(1, state.bgGradient.c2);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, cw, ch);
+          return;
+        }
+
+        if (state.bgType === 'studio') {
+          const cx = cw * 0.5;
+          const cy = ch * 0.36;
+          const maxR = Math.max(cw, ch) * 0.85;
+
+          if (state.bgStudioId === 'vignette-blue') {
+            const g = ctx.createRadialGradient(cx, cy, maxR * 0.05, cx, cy, maxR);
+            g.addColorStop(0, '#60a5fa');
+            g.addColorStop(0.55, '#1d4ed8');
+            g.addColorStop(1, '#172554');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, cw, ch);
+          } else if (state.bgStudioId === 'vignette-light') {
+            const g = ctx.createRadialGradient(cx, cy, maxR * 0.08, cx, cy, maxR);
+            g.addColorStop(0, '#ffffff');
+            g.addColorStop(0.65, '#e2e8f0');
+            g.addColorStop(1, '#cbd5e1');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, cw, ch);
+          } else if (state.bgStudioId === 'executive-dark') {
+            const g = ctx.createRadialGradient(cx, cy, maxR * 0.05, cx, cy, maxR);
+            g.addColorStop(0, '#475569');
+            g.addColorStop(0.58, '#1e293b');
+            g.addColorStop(1, '#020617');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, cw, ch);
+          } else if (state.bgStudioId === 'bokeh-cyan') {
+            const g = ctx.createLinearGradient(0, 0, cw, ch);
+            g.addColorStop(0, '#0c4a6e');
+            g.addColorStop(0.5, '#0369a1');
+            g.addColorStop(1, '#0f172a');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, cw, ch);
+
+            // Soft procedural bokeh circles
+            const orbs = [
+              { x: 0.18, y: 0.22, r: 0.16, a: 0.14, c: '#7dd3fc' },
+              { x: 0.82, y: 0.18, r: 0.20, a: 0.12, c: '#bae6fd' },
+              { x: 0.74, y: 0.72, r: 0.18, a: 0.10, c: '#38bdf8' },
+              { x: 0.22, y: 0.78, r: 0.14, a: 0.10, c: '#e0f2fe' },
+              { x: 0.50, y: 0.35, r: 0.28, a: 0.12, c: '#93c5fd' },
+            ];
+            orbs.forEach((o) => {
+              const ox = o.x * cw;
+              const oy = o.y * ch;
+              const or = o.r * Math.max(cw, ch);
+              const og = ctx.createRadialGradient(ox, oy, 0, ox, oy, or);
+              og.addColorStop(0, o.c);
+              og.addColorStop(1, 'rgba(255,255,255,0)');
+              ctx.save();
+              ctx.globalAlpha = o.a;
+              ctx.fillStyle = og;
+              ctx.beginPath();
+              ctx.arc(ox, oy, or, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            });
+          } else if (state.bgStudioId === 'warm-studio') {
+            const g = ctx.createRadialGradient(cx, cy, maxR * 0.05, cx, cy, maxR);
+            g.addColorStop(0, '#fef3c7');
+            g.addColorStop(0.58, '#d97706');
+            g.addColorStop(1, '#78350f');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, cw, ch);
+          } else {
+            const g = ctx.createRadialGradient(cx, cy, maxR * 0.05, cx, cy, maxR);
+            g.addColorStop(0, '#cbd5e1');
+            g.addColorStop(0.62, '#64748b');
+            g.addColorStop(1, '#334155');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, cw, ch);
+          }
+          return;
+        }
+
+        if (state.bgType === 'image' && state.bgImage) {
+          const iw = state.bgImage.naturalWidth;
+          const ih = state.bgImage.naturalHeight;
+          const scale = Math.max(cw / iw, ch / ih);
+          const dw = iw * scale;
+          const dh = ih * scale;
+          ctx.drawImage(state.bgImage, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+        }
+      }
+
+      /**
+       * Renders full composition onto any target CanvasRenderingContext2D (preview OR export)
+       */
+      function renderComposition(ctx, cw, ch, includeGuides) {
+        ctx.clearRect(0, 0, cw, ch);
+        if (!state.hasImage) return;
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        const ww = state.workCanvas.width;
+        const wh = state.workCanvas.height;
+        const baseScale = Math.max(cw / ww, ch / wh);
+        const drawW = ww * baseScale * state.zoom;
+        const drawH = wh * baseScale * state.zoom;
+        const drawX = (cw - drawW) / 2 + state.panX * cw;
+        const drawY = (ch - drawH) / 2 + state.panY * ch;
+
+        // If user is holding Compare Original, show untouched original photo
+        if (state.compareOriginal) {
+          ctx.drawImage(state.workCanvas, drawX, drawY, drawW, drawH);
+          return;
+        }
+
+        // 1. Background Layer
+        const hasBg = state.bgType !== 'transparent';
+        if (hasBg) {
+          drawBackgroundLayer(ctx, cw, ch);
+        }
+
+        // 2. Subject Cutout (or original while AI is still processing)
+        const subjectSource = state.maskReady && state.bgRemoved ? state.cutoutCanvas : state.workCanvas;
+
+        // 2a. Soft Studio Shadow (only when custom BG is active, for natural depth)
+        if (hasBg && state.maskReady && state.studioShadow > 0.01) {
+          ctx.save();
+          ctx.shadowColor = `rgba(15, 23, 42, ${(state.studioShadow * 0.42).toFixed(3)})`;
+          ctx.shadowBlur = Math.max(6, Math.round(Math.min(cw, ch) * 0.025));
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = Math.max(2, Math.round(Math.min(cw, ch) * 0.008));
+          ctx.drawImage(subjectSource, drawX, drawY, drawW, drawH);
+          ctx.restore();
+        } else {
+          ctx.drawImage(subjectSource, drawX, drawY, drawW, drawH);
+        }
+
+        // 2b. Real-Time 60fps Ambient BG Light Wrap (Eliminates "Detached" Cutout Look)
+        if (hasBg && state.maskReady && state.lightWrap > 0.01) {
+          const lwBg = state.lwBgCanvas;
+          lwBg.width = 48;
+          lwBg.height = 48;
+          const lwBgCtx = lwBg.getContext('2d');
+          lwBgCtx.clearRect(0, 0, 48, 48);
+          drawBackgroundLayer(lwBgCtx, 48, 48);
+
+          // Build rim-only light wrap at fast working scale (<=512px)
+          const wrapScale = Math.min(1, 512 / Math.max(cw, ch));
+          const wrapW = Math.max(64, Math.round(cw * wrapScale));
+          const wrapH = Math.max(64, Math.round(ch * wrapScale));
+          const lwWrap = state.lwWrapCanvas;
+          lwWrap.width = wrapW;
+          lwWrap.height = wrapH;
+          const lwCtx = lwWrap.getContext('2d');
+          lwCtx.clearRect(0, 0, wrapW, wrapH);
+
+          const wx = drawX * wrapScale;
+          const wy = drawY * wrapScale;
+          const wdw = drawW * wrapScale;
+          const wdh = drawH * wrapScale;
+
+          // Fill blurred background color
+          lwCtx.imageSmoothingEnabled = true;
+          lwCtx.drawImage(lwBg, 0, 0, wrapW, wrapH);
+
+          // Clip strictly to subject alpha
+          lwCtx.globalCompositeOperation = 'destination-in';
+          lwCtx.drawImage(state.cutoutCanvas, wx, wy, wdw, wdh);
+
+          // Punch out interior so ONLY soft rim receives ambient background spill
+          lwCtx.globalCompositeOperation = 'destination-out';
+          lwCtx.drawImage(state.innerMaskCanvas, wx, wy, wdw, wdh);
+          lwCtx.globalCompositeOperation = 'source-over';
+
+          // Composite ambient rim smoothly over the subject
+          ctx.save();
+          ctx.globalAlpha = state.lightWrap * 0.45;
+          ctx.drawImage(lwWrap, 0, 0, cw, ch);
+          ctx.restore();
+        }
+
+        // 3. Preview-Only Passport Alignment Guide Overlay
+        if (includeGuides && state.showGuides && state.activePreset.id !== 'original') {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(34, 211, 238, 0.55)';
+          ctx.lineWidth = Math.max(1, cw * 0.0025);
+          ctx.setLineDash([6, 5]);
+
+          // Center vertical axis
+          ctx.beginPath();
+          ctx.moveTo(cw / 2, ch * 0.04);
+          ctx.lineTo(cw / 2, ch * 0.96);
+          ctx.stroke();
+
+          // Eye-line guide (~42% from top)
+          ctx.beginPath();
+          ctx.moveTo(cw * 0.14, ch * 0.42);
+          ctx.lineTo(cw * 0.86, ch * 0.42);
+          ctx.stroke();
+
+          // Oval head guide
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.beginPath();
+          ctx.ellipse(cw / 2, ch * 0.41, cw * 0.25, ch * 0.28, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.restore();
+        }
+      }
+
+      let renderRaf = null;
+      function scheduleRender() {
+        if (renderRaf) return;
+        renderRaf = requestAnimationFrame(() => {
+          renderRaf = null;
+          if (!state.hasImage) return;
+          const ctx = els.displayCanvas.getContext('2d');
+          renderComposition(ctx, els.displayCanvas.width, els.displayCanvas.height, true);
+        });
+      }
+
+      // =====================================================================
+      // 9. EXACT KB TARGET EXPORT ENGINE (100 KB – 1024 KB)
+      // =====================================================================
+
+      function canvasToBlob(canvas, mime, quality) {
+        return new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Blob generation failed'));
+            },
+            mime,
+            quality
+          );
+        });
+      }
+
+      let exportInProgress = false;
+
+      async function exportTargetKB(targetKB) {
+        if (!state.hasImage || exportInProgress) return;
+        exportInProgress = true;
+        els.downloadMenuBtn.disabled = true;
+        els.stageDownloadBtn.disabled = true;
+
+        const targetBytes = targetKB * 1024;
+        const isTransparent = state.bgType === 'transparent';
+        const isExactPx = state.activePreset.exactPx === true;
+        const { w: baseW, h: baseH } = getTargetOutputDimensions();
+
+        const ext = isTransparent ? 'png' : 'jpg';
+        const presetSlug = state.activePreset.id === 'original' ? 'photo' : state.activePreset.id;
+        const filename = `crazy5-${presetSlug}-${targetKB}kb.${ext}`;
+
+        setProgress(true, `Optimizing ≤ ${targetKB} KB...`);
+
+        try {
+          const outCanvas = document.createElement('canvas');
+          const outCtx = outCanvas.getContext('2d', { alpha: isTransparent });
+          let finalBlob = null;
+          let finalW = baseW;
+          let finalH = baseH;
+
+          if (isTransparent) {
+            outCanvas.width = baseW;
+            outCanvas.height = baseH;
+            renderComposition(outCtx, baseW, baseH, false);
+            const fullBlob = await canvasToBlob(outCanvas, 'image/png');
+
+            if (fullBlob.size <= targetBytes) {
+              finalBlob = fullBlob;
+            } else if (isExactPx) {
+              // Preserve exact dimensions (e.g. Teletalk 300×300 px) with gentle RGB quantization
+              const origImg = outCtx.getImageData(0, 0, baseW, baseH);
+              const steps = [4, 8, 12, 16, 24, 32, 48];
+              for (const qStep of steps) {
+                const qImg = new ImageData(new Uint8ClampedArray(origImg.data), baseW, baseH);
+                const qd = qImg.data;
+                for (let i = 0; i < qd.length; i += 4) {
+                  if (qd[i + 3] === 0) continue;
+                  qd[i] = Math.min(255, Math.round(qd[i] / qStep) * qStep);
+                  qd[i + 1] = Math.min(255, Math.round(qd[i + 1] / qStep) * qStep);
+                  qd[i + 2] = Math.min(255, Math.round(qd[i + 2] / qStep) * qStep);
+                }
+                outCtx.putImageData(qImg, 0, 0);
+                const qBlob = await canvasToBlob(outCanvas, 'image/png');
+                finalBlob = qBlob;
+                if (qBlob.size <= targetBytes) break;
+              }
+            } else {
+              // Binary search optimal scale so transparent PNG stays strictly <= targetBytes
+              let lo = 0.20;
+              let hi = 0.98;
+              let bestBlob = null;
+              let bestW = baseW;
+              let bestH = baseH;
+
+              for (let i = 0; i < 9; i++) {
+                const mid = (lo + hi) / 2;
+                const tw = Math.max(80, Math.round(baseW * mid));
+                const th = Math.max(80, Math.round(baseH * mid));
+                outCanvas.width = tw;
+                outCanvas.height = th;
+                renderComposition(outCtx, tw, th, false);
+
+                const blob = await canvasToBlob(outCanvas, 'image/png');
+                if (blob.size <= targetBytes) {
+                  bestBlob = blob;
+                  bestW = tw;
+                  bestH = th;
+                  lo = mid;
+                } else {
+                  hi = mid;
+                }
+              }
+
+              if (bestBlob) {
+                finalBlob = bestBlob;
+                finalW = bestW;
+                finalH = bestH;
+              } else {
+                finalW = Math.max(80, Math.round(baseW * 0.20));
+                finalH = Math.max(80, Math.round(baseH * 0.20));
+                outCanvas.width = finalW;
+                outCanvas.height = finalH;
+                renderComposition(outCtx, finalW, finalH, false);
+                finalBlob = await canvasToBlob(outCanvas, 'image/png');
+              }
+            }
+          } else {
+            // Crisp JPEG binary search on quality (and slight dimension step only if needed)
+            let curW = baseW;
+            let curH = baseH;
+            const maxDimSteps = isExactPx ? 1 : 8;
+
+            for (let step = 0; step < maxDimSteps; step++) {
+              outCanvas.width = Math.max(120, Math.round(curW));
+              outCanvas.height = Math.max(120, Math.round(curH));
+              renderComposition(outCtx, outCanvas.width, outCanvas.height, false);
+
+              let lo = 0.15;
+              let hi = 0.98;
+              let bestUnder = null;
+
+              for (let iter = 0; iter < 10; iter++) {
+                const mid = (lo + hi) / 2;
+                const blob = await canvasToBlob(outCanvas, 'image/jpeg', mid);
+                if (blob.size <= targetBytes) {
+                  bestUnder = blob;
+                  lo = mid;
+                } else {
+                  hi = mid;
+                }
+              }
+
+              if (bestUnder && bestUnder.size <= targetBytes) {
+                finalBlob = bestUnder;
+                finalW = outCanvas.width;
+                finalH = outCanvas.height;
+                break;
+              }
+
+              if (isExactPx) {
+                finalBlob = await canvasToBlob(outCanvas, 'image/jpeg', 0.12);
+                finalW = outCanvas.width;
+                finalH = outCanvas.height;
+                break;
+              }
+
+              curW *= 0.85;
+              curH *= 0.85;
+            }
+
+            if (!finalBlob) {
+              finalBlob = await canvasToBlob(outCanvas, 'image/jpeg', 0.15);
+              finalW = outCanvas.width;
+              finalH = outCanvas.height;
+            }
+          }
+
+          const url = URL.createObjectURL(finalBlob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+          const exactKB = (finalBlob.size / 1024).toFixed(1);
+          showToast(`Downloaded ${filename} (${exactKB} KB • ${finalW}×${finalH} px)`, 'success');
+        } catch (err) {
+          console.error('Export failed:', err);
+          showToast('Export failed. Please try again.', 'error');
+        } finally {
+          exportInProgress = false;
+          els.downloadMenuBtn.disabled = !state.hasImage;
+          els.stageDownloadBtn.disabled = !state.hasImage;
+          setProgress(false);
+        }
+      }
+
+      // =====================================================================
+      // 10. BUILD DYNAMIC GRIDS & DOWNLOAD MENUS
+      // =====================================================================
+
+      function setDownloadMenuOpen(open) {
+        if (open) setStageDownloadOpen(false);
+        els.downloadDropdown.classList.toggle('hidden', !open);
+        els.downloadMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        els.downloadChevron.style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+      }
+
+      function setStageDownloadOpen(open) {
+        if (open) {
+          els.downloadDropdown.classList.add('hidden');
+          els.downloadMenuBtn.setAttribute('aria-expanded', 'false');
+          els.downloadChevron.style.transform = 'rotate(0deg)';
+        }
+        els.stageDownloadPopover.classList.toggle('hidden', !open);
+        els.stageDownloadBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      function populateDownloadSizeGrid(container, onSelect) {
+        container.innerHTML = '';
+        DOWNLOAD_SIZES.forEach((opt) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className =
+            'flex items-center justify-between px-2.5 py-2 rounded-xl bg-slate-950/80 hover:bg-emerald-600/25 border border-slate-800 hover:border-emerald-400/60 text-left transition cursor-pointer group';
+          btn.innerHTML = `
+            <span class="text-xs font-extrabold text-slate-100 group-hover:text-emerald-200">${opt.label}</span>
+            <span class="text-[9px] font-semibold text-slate-500 group-hover:text-emerald-300/90">${opt.tag}</span>
+          `;
+          btn.addEventListener('click', () => {
+            onSelect();
+            exportTargetKB(opt.kb);
+          });
+          container.appendChild(btn);
+        });
+      }
+
+      function buildAllPresetGrids() {
+        // 0. 10-Option Download KB Grids (Header Dropdown + Right-Side Floating Icon Popover)
+        populateDownloadSizeGrid(els.downloadSizeGrid, () => setDownloadMenuOpen(false));
+        populateDownloadSizeGrid(els.stageDownloadSizeGrid, () => setStageDownloadOpen(false));
+
+        // 1. Gradient Swatches (FIRST)
+        els.gradientGrid.innerHTML = '';
+        GRADIENT_PRESETS.forEach((grad) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.id = grad.id;
+          btn.title = grad.name;
+          btn.className =
+            'grad-swatch h-12 rounded-xl border border-white/15 shadow-sm hover:scale-105 active:scale-95 transition cursor-pointer relative overflow-hidden group';
+          btn.style.background = `linear-gradient(${grad.angle}deg, ${grad.c1}, ${grad.c2})`;
+          btn.innerHTML = `<span class="absolute inset-x-0 bottom-0 px-1 py-0.5 bg-slate-950/65 text-[9px] font-bold text-white truncate opacity-0 group-hover:opacity-100 transition">${grad.name}</span>`;
+          btn.addEventListener('click', () => {
+            state.bgType = 'gradient';
+            state.bgGradient = { ...grad };
+            updateUIState();
+            scheduleRender();
+          });
+          els.gradientGrid.appendChild(btn);
+        });
+
+        // 2. Solid Color Swatches (SECOND)
+        els.solidGrid.innerHTML = '';
+        SOLID_PRESETS.forEach((col) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.hex = col.hex;
+          btn.title = `${col.name} (${col.hex})`;
+          btn.className =
+            'solid-swatch h-10 rounded-xl border border-slate-600/80 shadow-sm hover:scale-105 active:scale-95 transition cursor-pointer';
+          btn.style.backgroundColor = col.hex;
+          btn.addEventListener('click', () => {
+            state.bgType = 'solid';
+            state.bgSolidColor = col.hex;
+            els.customSolidPicker.value = col.hex;
+            els.customSolidHex.textContent = col.hex.toUpperCase();
+            updateUIState();
+            scheduleRender();
+          });
+          els.solidGrid.appendChild(btn);
+        });
+
+        // 3. Studio Styles
+        els.studioStyleGrid.innerHTML = '';
+        STUDIO_STYLES.forEach((st) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.id = st.id;
+          btn.className =
+            'studio-swatch flex items-center gap-2.5 p-2 rounded-2xl bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800 text-left transition cursor-pointer';
+          btn.innerHTML = `
+            <span class="w-9 h-9 rounded-xl border border-white/15 shrink-0" style="background: ${st.preview};"></span>
+            <span class="min-w-0">
+              <span class="block text-[11px] font-bold text-slate-100 truncate">${st.name}</span>
+              <span class="block text-[10px] text-slate-400 truncate">${st.desc}</span>
+            </span>
+          `;
+          btn.addEventListener('click', () => {
+            state.bgType = 'studio';
+            state.bgStudioId = st.id;
+            updateUIState();
+            scheduleRender();
+          });
+          els.studioStyleGrid.appendChild(btn);
+        });
+
+        // 4. Bangladesh & International Passport Presets (9 Presets)
+        els.passportPresetGrid.innerHTML = '';
+        PASSPORT_PRESETS.forEach((preset) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.id = preset.id;
+          btn.className =
+            'preset-card w-full flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 text-left transition cursor-pointer';
+          btn.innerHTML = `
+            <div class="min-w-0 pr-2">
+              <div class="text-xs font-extrabold text-white truncate">${preset.name}</div>
+              <div class="text-[11px] text-slate-400 font-medium mt-0.5">${preset.sizeText}</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 text-[10px] font-bold text-indigo-300 shrink-0">${preset.badge}</span>
+          `;
+          btn.addEventListener('click', () => {
+            if (!state.hasImage) {
+              showToast('Upload a photo first to apply passport sizing.', 'info');
+              return;
+            }
+            applyPassportAutoFraming(preset);
+          });
+          els.passportPresetGrid.appendChild(btn);
+        });
+      }
+
+      // =====================================================================
+      // 11. EVENT LISTENERS (UPLOAD, DRAG-DROP, PASTE, ZOOM, PINCH, SLIDERS)
+      // =====================================================================
+
+      function bindEvents() {
+        // Upload Triggers
+        els.headerUploadBtn.addEventListener('click', () => els.photoInput.click());
+        els.emptyState.addEventListener('click', () => els.photoInput.click());
+        els.photoInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          e.target.value = ''; // Allow re-uploading same filename
+          if (file) loadPhotoFile(file);
+        });
+
+        // Custom BG Upload
+        els.uploadCustomBgBtn.addEventListener('click', () => els.customBgInput.click());
+        els.customBgInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          e.target.value = '';
+          if (file) loadCustomBgFile(file);
+        });
+
+        // Drag & Drop Anywhere on Stage
+        let dragDepth = 0;
+        els.canvasStage.addEventListener('dragenter', (e) => {
+          e.preventDefault();
+          dragDepth++;
+          els.dragOverlay.classList.remove('hidden');
+        });
+        els.canvasStage.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        });
+        els.canvasStage.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          dragDepth = Math.max(0, dragDepth - 1);
+          if (dragDepth === 0) els.dragOverlay.classList.add('hidden');
+        });
+        els.canvasStage.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dragDepth = 0;
+          els.dragOverlay.classList.add('hidden');
+          const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (file) loadPhotoFile(file);
+        });
+
+        // Clipboard Paste (Ctrl+V)
+        window.addEventListener('paste', (e) => {
+          const items = e.clipboardData && e.clipboardData.items;
+          if (!items) return;
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith('image/')) {
+              const file = items[i].getAsFile();
+              if (file) {
+                loadPhotoFile(file);
+                break;
+              }
+            }
+          }
+        });
+
+        // 1-Click Top Dashboard Passport Size Button + Reset Original Button
+        els.quickPassportBtn.addEventListener('click', () => {
+          if (!state.hasImage) return;
+          const nextPreset = state.activePreset.id === 'original' ? PASSPORT_PRESETS[0] : state.activePreset;
+          applyPassportAutoFraming(nextPreset);
+        });
+
+        els.quickOriginalBtn.addEventListener('click', () => {
+          if (!state.hasImage) return;
+          applyPassportAutoFraming(PASSPORT_PRESETS.find((p) => p.id === 'original'));
+        });
+
+        els.panelAutoPassportBtn.addEventListener('click', () => {
+          if (!state.hasImage) {
+            showToast('Please upload a photo first.', 'info');
+            return;
+          }
+          const target = state.activePreset.id === 'original' ? PASSPORT_PRESETS[0] : state.activePreset;
+          applyPassportAutoFraming(target);
+        });
+
+        els.toggleGuidesBtn.addEventListener('click', () => {
+          state.showGuides = !state.showGuides;
+          updateUIState();
+          scheduleRender();
+        });
+
+        // Studio Tabs
+        document.querySelectorAll('.tab-btn').forEach((btn) => {
+          btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+        });
+
+        // Background Controls
+        els.btnTransparentBg.addEventListener('click', () => {
+          state.bgType = 'transparent';
+          updateUIState();
+          scheduleRender();
+        });
+
+        const applyCustomGradient = () => {
+          const angle = Number(els.customGradAngle.value);
+          els.customGradAngleVal.textContent = `${angle}°`;
+          state.bgType = 'gradient';
+          state.bgGradient = {
+            id: 'custom-grad',
+            name: 'Custom Gradient',
+            c1: els.customGradColor1.value,
+            c2: els.customGradColor2.value,
+            angle,
+          };
+          updateUIState();
+          scheduleRender();
+        };
+        els.applyCustomGradBtn.addEventListener('click', applyCustomGradient);
+        els.customGradColor1.addEventListener('input', applyCustomGradient);
+        els.customGradColor2.addEventListener('input', applyCustomGradient);
+        els.customGradAngle.addEventListener('input', applyCustomGradient);
+
+        const applyCustomSolid = () => {
+          const hex = els.customSolidPicker.value;
+          els.customSolidHex.textContent = hex.toUpperCase();
+          state.bgType = 'solid';
+          state.bgSolidColor = hex;
+          updateUIState();
+          scheduleRender();
+        };
+        els.customSolidPicker.addEventListener('input', applyCustomSolid);
+        els.applyCustomSolidBtn.addEventListener('click', applyCustomSolid);
+
+        // Zoom (30% - 500%) & Pan Sliders
+        const setZoom = (z) => {
+          state.zoom = Number(Math.max(0.3, Math.min(5.0, z)).toFixed(2));
+          syncTransformControls();
+          scheduleRender();
+        };
+
+        els.zoomSlider.addEventListener('input', () => setZoom(Number(els.zoomSlider.value) / 100));
+        els.zoomOutBtn.addEventListener('click', () => setZoom(state.zoom - 0.15));
+        els.zoomInBtn.addEventListener('click', () => setZoom(state.zoom + 0.15));
+
+        document.querySelectorAll('.zoom-pill').forEach((btn) => {
+          btn.addEventListener('click', () => setZoom(Number(btn.dataset.zoom)));
+        });
+
+        els.panXSlider.addEventListener('input', () => {
+          state.panX = Number(els.panXSlider.value) / 100;
+          els.panXVal.textContent = `${els.panXSlider.value}%`;
+          scheduleRender();
+        });
+
+        els.panYSlider.addEventListener('input', () => {
+          state.panY = Number(els.panYSlider.value) / 100;
+          els.panYVal.textContent = `${els.panYSlider.value}%`;
+          scheduleRender();
+        });
+
+        els.resetTransformBtn.addEventListener('click', () => {
+          state.zoom = 1;
+          state.panX = 0;
+          state.panY = 0;
+          syncTransformControls();
+          scheduleRender();
+        });
+
+        // Hold to Compare Original
+        const startCompare = (e) => {
+          e.preventDefault();
+          if (!state.hasImage) return;
+          state.compareOriginal = true;
+          els.compareBadge.classList.remove('hidden');
+          scheduleRender();
+        };
+        const stopCompare = () => {
+          if (!state.compareOriginal) return;
+          state.compareOriginal = false;
+          els.compareBadge.classList.add('hidden');
+          scheduleRender();
+        };
+        els.compareOriginalBtn.addEventListener('pointerdown', startCompare);
+        window.addEventListener('pointerup', stopCompare);
+        window.addEventListener('pointercancel', stopCompare);
+
+        // Mouse Wheel Zoom on Canvas
+        els.displayCanvas.addEventListener(
+          'wheel',
+          (e) => {
+            if (!state.hasImage) return;
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.12 : -0.12;
+            setZoom(state.zoom + delta);
+          },
+          { passive: false }
+        );
+
+        // Smooth Pointer-Capture Panning + 2-Finger Pinch-to-Zoom
+        els.displayCanvas.addEventListener('pointerdown', (e) => {
+          if (!state.hasImage) return;
+          els.displayCanvas.setPointerCapture(e.pointerId);
+          state.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+          if (state.activePointers.size === 1) {
+            state.dragging = true;
+            state.activePointerId = e.pointerId;
+            state.dragStartClientX = e.clientX;
+            state.dragStartClientY = e.clientY;
+            state.dragOrigPanX = state.panX;
+            state.dragOrigPanY = state.panY;
+          } else if (state.activePointers.size === 2) {
+            state.dragging = false;
+            const pts = Array.from(state.activePointers.values());
+            state.pinchStartDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+            state.pinchStartZoom = state.zoom;
+          }
+        });
+
+        els.displayCanvas.addEventListener('pointermove', (e) => {
+          if (!state.activePointers.has(e.pointerId)) return;
+          state.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+          if (state.activePointers.size === 2) {
+            const pts = Array.from(state.activePointers.values());
+            const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+            const scaleFactor = dist / Math.max(1, state.pinchStartDist);
+            setZoom(state.pinchStartZoom * scaleFactor);
+            return;
+          }
+
+          if (!state.dragging || e.pointerId !== state.activePointerId) return;
+          const rect = els.displayCanvas.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return;
+          const dx = (e.clientX - state.dragStartClientX) / rect.width;
+          const dy = (e.clientY - state.dragStartClientY) / rect.height;
+          state.panX = Math.max(-1.5, Math.min(1.5, state.dragOrigPanX + dx));
+          state.panY = Math.max(-1.5, Math.min(1.5, state.dragOrigPanY + dy));
+          syncTransformControls();
+          scheduleRender();
+        });
+
+        const endPointer = (e) => {
+          state.activePointers.delete(e.pointerId);
+          if (state.activePointers.size === 1) {
+            const [remId, remPt] = state.activePointers.entries().next().value;
+            state.dragging = true;
+            state.activePointerId = remId;
+            state.dragStartClientX = remPt.x;
+            state.dragStartClientY = remPt.y;
+            state.dragOrigPanX = state.panX;
+            state.dragOrigPanY = state.panY;
+          } else if (state.activePointers.size === 0) {
+            state.dragging = false;
+            state.activePointerId = null;
+          }
+        };
+        els.displayCanvas.addEventListener('pointerup', endPointer);
+        els.displayCanvas.addEventListener('pointercancel', endPointer);
+
+        // Edge Refine & Blend Sliders (Debounced rAF for instant smooth response)
+        let cutoutRaf = null;
+        const scheduleCutoutRebuild = () => {
+          if (cutoutRaf) cancelAnimationFrame(cutoutRaf);
+          cutoutRaf = requestAnimationFrame(() => {
+            cutoutRaf = null;
+            if (!state.hasImage || !state.maskReady) return;
+            rebuildCutoutCache();
+            scheduleRender();
+          });
+        };
+
+        els.haloTrimSlider.addEventListener('input', () => {
+          state.haloTrim = Number(els.haloTrimSlider.value);
+          els.haloTrimVal.textContent = `${state.haloTrim.toFixed(1)} px`;
+          scheduleCutoutRebuild();
+        });
+
+        els.edgeSmoothSlider.addEventListener('input', () => {
+          state.edgeSmoothness = Number(els.edgeSmoothSlider.value);
+          els.edgeSmoothVal.textContent = `${state.edgeSmoothness.toFixed(1)} px`;
+          scheduleCutoutRebuild();
+        });
+
+        els.decontamSlider.addEventListener('input', () => {
+          state.decontamStrength = Number(els.decontamSlider.value) / 100;
+          els.decontamVal.textContent = `${els.decontamSlider.value}%`;
+          scheduleCutoutRebuild();
+        });
+
+        els.lightWrapSlider.addEventListener('input', () => {
+          state.lightWrap = Number(els.lightWrapSlider.value) / 100;
+          els.lightWrapVal.textContent = `${els.lightWrapSlider.value}%`;
+          scheduleRender();
+        });
+
+        els.studioShadowSlider.addEventListener('input', () => {
+          state.studioShadow = Number(els.studioShadowSlider.value) / 100;
+          els.studioShadowVal.textContent = `${els.studioShadowSlider.value}%`;
+          scheduleRender();
+        });
+
+        els.resetEdgeBtn.addEventListener('click', () => {
+          state.haloTrim = 1.2;
+          state.edgeSmoothness = 1.1;
+          state.decontamStrength = 0.85;
+          state.lightWrap = 0.35;
+          state.studioShadow = 0.18;
+          syncEdgeControls();
+          scheduleCutoutRebuild();
+          showToast('Edge & blend settings reset to studio defaults.', 'info');
+        });
+
+        els.rerunAiBtn.addEventListener('click', () => {
+          if (!state.hasImage) {
+            showToast('Upload a photo first.', 'info');
+            return;
+          }
+          runAutoBackgroundRemoval();
+        });
+
+        // Header Download Dropdown + Picture Right-Side Floating Download Icon
+        els.downloadMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!state.hasImage) return;
+          setDownloadMenuOpen(els.downloadDropdown.classList.contains('hidden'));
+        });
+
+        els.stageDownloadBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!state.hasImage) return;
+          setStageDownloadOpen(els.stageDownloadPopover.classList.contains('hidden'));
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!els.downloadMenuWrap.contains(e.target)) {
+            setDownloadMenuOpen(false);
+          }
+          if (!els.stageDownloadWrap.contains(e.target)) {
+            setStageDownloadOpen(false);
+          }
+        });
+
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            setDownloadMenuOpen(false);
+            setStageDownloadOpen(false);
+          }
+        });
+
+        // Responsive HiDPI Canvas Resize + ResizeObserver
+        let resizeRaf = null;
+        const scheduleResize = () => {
+          if (resizeRaf) cancelAnimationFrame(resizeRaf);
+          resizeRaf = requestAnimationFrame(() => {
+            resizeDisplayCanvas();
+            scheduleRender();
+          });
+        };
+        window.addEventListener('resize', scheduleResize);
+        if (typeof ResizeObserver !== 'undefined') {
+          new ResizeObserver(scheduleResize).observe(els.canvasStage);
+        }
+      }
+
+      // =====================================================================
+      // 12. BOOTSTRAP
+      // =====================================================================
+
+      function initIcons() {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      }
+
+      function init() {
+        buildAllPresetGrids();
+        syncTransformControls();
+        syncEdgeControls();
+        bindEvents();
+        updateUIState();
+        initIcons();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+      window.addEventListener('load', initIcons);
+    })();
+  </script>
+</body>
+</html>
